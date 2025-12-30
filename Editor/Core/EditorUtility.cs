@@ -26,12 +26,12 @@ namespace SAS.Core.Editor
             DropDown(id, position, popupPos, options, null, selectedIndex, defaultText, color, onSelect, onAddItemClicked);
         }
 
-        public static void DropDown(int id, Rect position, Rect popupPos, string[] popupOptions, string[] displayOptions, int selectedIndex, string defaultText, Color color, Action<int> onSelect, Action onAddItemClicked = null)
+        public static void DropDown(int id, Rect position, Rect popupPos, string[] popupOptions, string[] displayOptions, int selectedIndex, string defaultText, Color color, Action<int> onSelect, Action onAddItemClicked = null, string forcedTooltip = null)
         {
-            DrawDropDown(id, position, popupPos, popupOptions, displayOptions, selectedIndex, defaultText, color, onSelect, onAddItemClicked);
+            DrawDropDown(id, position, popupPos, popupOptions, displayOptions, selectedIndex, defaultText, color, onSelect, onAddItemClicked, forcedTooltip);
         }
 
-        private static void DrawDropDown(int id, Rect position, Rect popupPos, string[] popupOptions, string[] displayOptions, int selectedIndex, string defaultText, Color color, Action<int> onSelect, Action onAddItemClicked)
+        private static void DrawDropDown(int id, Rect position, Rect popupPos, string[] popupOptions, string[] displayOptions, int selectedIndex, string defaultText, Color color, Action<int> onSelect, Action onAddItemClicked, string forcedTooltip)
         {
             int controlID = GUIUtility.GetControlID(id, FocusType.Keyboard, position);
 
@@ -52,9 +52,11 @@ namespace SAS.Core.Editor
 
             // ---- Tooltip ----
             string tooltip =
-                hasSelection
-                    ? popupOptions[selectedIndex]
-                    : defaultText;
+                !string.IsNullOrEmpty(forcedTooltip)
+                    ? forcedTooltip
+                    : hasSelection
+                        ? popupOptions[selectedIndex]
+                        : defaultText;
 
             var content = new GUIContent(label, tooltip);
 

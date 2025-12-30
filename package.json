@@ -3,5 +3,9 @@
   "version": "1.0.0",
   "displayName": "SAS Core",
   "unity": "2018.1",
+  "author": {
+    "name": "SAS",
+    "email": "sonkar.abhi86@gmail.com"
+  },
   "hideInEditor": true
 }

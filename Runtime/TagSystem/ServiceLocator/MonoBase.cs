@@ -18,7 +18,7 @@ namespace SAS.Core.TagSystem
             }
         }
 
-        internal void SetParent(MonoBase parent)
+        public void SetParent(MonoBase parent)
         {
             _parent = parent;
             parent?.AddChild(this);
@@ -29,7 +29,7 @@ namespace SAS.Core.TagSystem
             _children.Add(monoBase);
         }
 
-        internal void Unparent()
+        public void Unparent()
         {
             _parent?._children?.Remove(this);
             _parent = null;
