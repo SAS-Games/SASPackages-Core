@@ -8,13 +8,23 @@ namespace SAS.Core.TagSystem
     public class BaseContextBinder : MonoBase, IContextBinder
     {
         [SerializeField] public bool m_EarlyBinding = false;
-        [Tooltip("If True, this GameObject will be marked as DontDestroyOnLoad. Make Sure Only one context is there for which  isCrossContextBinder is true")]
-        [SerializeField] private bool m_IsCrossContextBinder;
-        [SerializeField] public Binder m_Binder;
 
-        void Awake()
+        [Tooltip(
+            "If Scope.SceneLevel, this GameObject will be marked as DontDestroyOnLoad. Make Sure Only one context is there for which Scope is SceneLevel")]
+        [SerializeField]
+        private Scope m_Scope = Scope.SceneLevel;
+
+        [SerializeField] private Binder m_Binder; 
+        public bool IsCrossContextBinder => m_Scope == Scope.ProjectLevel;
+        Scope IContextBinder.BinderScope => m_Scope;
+
+        protected override void Awake()
         {
-            if (m_IsCrossContextBinder)
+            ++m_Binder.refCount;
+            if (m_Scope == Scope.ObjectLevel)
+                m_Binder = Instantiate(m_Binder);
+
+            if (m_Scope == Scope.ProjectLevel)
             {
                 if (!ComponentExtensions._cachedContext.TryGetValue("DontDestroyOnLoad", out var context))
                 {
@@ -24,6 +34,12 @@ namespace SAS.Core.TagSystem
                 else
                     Debug.LogWarning($"There is already an CrossContextBinder wit the name {context.GetType().Name} ");
             }
+            else if (m_Scope == Scope.SceneLevel)
+            {
+                if (!ComponentExtensions._cachedContext.ContainsKey(this.gameObject.scene.name))
+                    ComponentExtensions._cachedContext.Add(this.gameObject.scene.name, this);
+            }
+
             if (m_EarlyBinding)
                 m_Binder.CreateAllInstance(this);
         }
@@ -66,7 +82,13 @@ namespace SAS.Core.TagSystem
         {
             if (gameObject != null && gameObject.scene != null && !string.IsNullOrEmpty(gameObject.scene.name))
                 ComponentExtensions._cachedContext.Remove(gameObject?.scene.name);
-            m_Binder?.Clear();
+            if (m_Binder != null)
+            {
+                --m_Binder.refCount;
+                if (m_Binder.refCount==0)
+                    m_Binder.Clear();
+            }
+
             base.OnDestroy();
         }
     }

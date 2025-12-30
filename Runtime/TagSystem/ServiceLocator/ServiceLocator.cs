@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
@@ -7,26 +7,45 @@ namespace SAS.Core.TagSystem
 {
     public class ServiceLocator : IServiceLocator
     {
-        public interface IService { }
+        public class WeakService
+        {
+            public WeakReference<object> Reference;
 
-        private Dictionary<string, List<object>> _services = new Dictionary<string, List<object>>();
+            public WeakService(object service)
+            {
+                Reference = new WeakReference<object>(service);
+            }
 
-        public void Add<T>(object service, string tag = "")
+            public bool TryGet(out object service)
+            {
+                return Reference.TryGetTarget(out service);
+            }
+
+            public bool IsAlive => Reference.TryGetTarget(out _);
+        }
+
+        public interface IService
+        {
+        }
+
+        private Dictionary<Key, List<WeakService>> _services = new();
+
+        public void Add<T>(object service, Tag tag = default)
         {
             Add(typeof(T), service, tag);
         }
 
-        public void Add(Type type, object service, string tag = "")
+        public void Add(Type type, object service, Tag tag = default)
         {
             var key = GetKey(type, tag);
             if (!_services.TryGetValue(key, out var serviceList))
             {
-                serviceList = new List<object>();
+                serviceList = new List<WeakService>();
                 _services.Add(key, serviceList);
             }
 
-            if (!serviceList.Contains(service))
-                serviceList.Add(service);
+            if (!serviceList.Any(ws => ws.TryGet(out var s) && s == service))
+                serviceList.Add(new WeakService(service));
 
             var baseTypes = type.GetInterfaces();
             if (type.BaseType != null)
@@ -36,60 +55,76 @@ namespace SAS.Core.TagSystem
                 Add(baseType, service, tag);
         }
 
-        private string GetKey(Type type, string tag)
+
+        private Key GetKey(Type type, Tag tag)
         {
-            return $"{type.Name}{tag}";
+            return new Key { type = type, tag = tag };
         }
 
-        public T Get<T>(string tag = "")
+        public T Get<T>(Tag tag = default)
         {
             TryGet<T>(out var service, tag);
             return service;
         }
 
-        public bool TryGet<T>(out T service, string tag = "")
+        public bool TryGet<T>(out T service, Tag tag = default)
         {
             bool result = TryGet(typeof(T), out object serviceObj, tag);
-            service = (T)serviceObj; 
+            service = (T)serviceObj;
             return result;
         }
 
-        public bool TryGet(Type type, out object service, string tag = "")
+        public bool TryGet(Type type, out object service, Tag tag = default)
         {
+            service = null;
             var key = GetKey(type, tag);
-            if (!_services.TryGetValue(key, out var services))
+
+            if (!_services.TryGetValue(key, out var list))
+                return false;
+
+            // Clean up dead references
+            list.RemoveAll(w => !w.IsAlive);
+
+            if (list.Count == 0)
             {
-                service = null;
-                Debug.LogError($"Required service of type {type.Name} with tag {tag} is not found");
+                _services.Remove(key);
                 return false;
             }
 
-            if (services.Count > 1)
-                Debug.LogError($"There is more than one IService that implements {type.Name}");
+            if (list.Count > 1)
+                Debug.LogError($"More than one service registered for {type.Name}");
 
-            service = services[0];
-            return true;
+            return list[0].TryGet(out service);
         }
 
-        public IEnumerable<T> GetAll<T>(string tag = "")
+
+        public IEnumerable<T> GetAll<T>(Tag tag = default)
         {
             return GetAll(typeof(T), tag).Cast<T>();
         }
 
-        public IEnumerable<object> GetAll(Type type, string tag = "")
+        public IEnumerable<object> GetAll(Type type, Tag tag = default)
         {
-            if (_services.TryGetValue(GetKey(type, tag), out var value))
-                return value;
-            else
-                return Array.Empty<object>();
+            if (_services.TryGetValue(GetKey(type, tag), out var list))
+            {
+                list.RemoveAll(ws => !ws.IsAlive);
+
+                foreach (var ws in list)
+                {
+                    if (ws.Reference.TryGetTarget(out var service))
+                        yield return service;
+                }
+            }
+            yield break;
         }
 
-        public T GetOrCreate<T>(string tag = "")
+
+        public T GetOrCreate<T>(Tag tag = default)
         {
             return (T)GetOrCreate(typeof(T), tag);
         }
 
-        public object GetOrCreate(Type type, string tag = "")
+        public object GetOrCreate(Type type, Tag tag = default)
         {
             var key = GetKey(type, tag);
             if (!_services.TryGetValue(key, out var values))
@@ -102,15 +137,15 @@ namespace SAS.Core.TagSystem
             return values[0];
         }
 
-        public bool Remove<T>(string tag = "")
+        public bool Remove<T>(Tag tag = default)
         {
             return Remove(typeof(T), tag);
         }
 
-        public bool Remove(Type type, string tag = "")
+        public bool Remove(Type type, Tag tag = default)
         {
             var key = GetKey(type, tag);
-            return !_services.Remove(key);
+            return _services.Remove(key);
         }
 
         public void OnInstanceCreated()

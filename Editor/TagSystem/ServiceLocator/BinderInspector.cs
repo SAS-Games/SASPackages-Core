@@ -13,13 +13,11 @@ namespace SAS.Core.TagSystem.Editor
         private ReorderableList _bindings;
         private Type[] _allInterface;
         private Type[] _allBindableType;
-
         private void OnEnable()
         {
             _allInterface = AppDomain.CurrentDomain.GetAllInterface<IBindable>().ToArray();
             _allBindableType = AppDomain.CurrentDomain.GetAllDerivedTypes<IBindable>().ToArray();
-            _bindings = new ReorderableList(serializedObject, serializedObject.FindProperty("m_Bindings"), true, true,
-                true, true);
+            _bindings = new ReorderableList(serializedObject, serializedObject.FindProperty("m_Bindings"), true, true, true, true);
             DrawReorderableBindingsList(_bindings);
         }
 
@@ -33,38 +31,38 @@ namespace SAS.Core.TagSystem.Editor
         {
             bindings.drawHeaderCallback = (Rect rect) =>
             {
-                var style = new GUIStyle(GUI.skin.label)
-                    { alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Bold };
-                var pos = new Rect(rect.x + 30, rect.y - 2, rect.width / 3, rect.height - 2);
+                var style = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Bold };
+
+                var pos = new Rect(rect.x + 30, rect.y - 2, rect.width / 4, rect.height - 2);
                 EditorGUI.LabelField(pos, "Injectable", style);
 
-                pos = new Rect(rect.x + 30 + rect.width / 3, rect.y - 2, rect.width / 3,
-                    rect.height -
-                    2); //new Rect(rect.width - Mathf.Min(100, rect.width / 3 - 20) - 20, rect.y, width, rect.height);
+                pos = new Rect(rect.x + 30 + rect.width / 4, rect.y - 2, rect.width / 4, rect.height - 2);
                 EditorGUI.LabelField(pos, "Bind With", style);
 
-                pos = new Rect(rect.x + 30 + 2 * rect.width / 3, rect.y - 2, rect.width / 3 - 30, rect.height - 2);
+                pos = new Rect(rect.x + 30 + 2 * rect.width / 4, rect.y - 2, rect.width / 4, rect.height - 2);
                 EditorGUI.LabelField(pos, "Tag", style);
+
+                pos = new Rect(rect.x + 30 + 3 * rect.width / 4, rect.y - 2, rect.width / 4 - 30, rect.height - 2);
+                EditorGUI.LabelField(pos, "Excluded Platforms", style);
             };
 
             bindings.onAddCallback = list =>
             {
                 bindings.serializedProperty.InsertArrayElementAtIndex(bindings.serializedProperty.arraySize);
-                var injectable = bindings.serializedProperty
-                    .GetArrayElementAtIndex(bindings.serializedProperty.arraySize - 1)
-                    .FindPropertyRelative("m_Interface");
+                var injectable = bindings.serializedProperty.GetArrayElementAtIndex(bindings.serializedProperty.arraySize - 1).FindPropertyRelative("m_Interface");
                 if (bindings.serializedProperty.arraySize == 1)
                     injectable.stringValue = _allInterface[0].AssemblyQualifiedName;
             };
 
             bindings.drawElementCallback = (Rect rect, int index, bool isActive, bool isFocused) =>
             {
-                var injectableInterface = bindings.serializedProperty.GetArrayElementAtIndex(index)
-                    .FindPropertyRelative("m_Interface");
-                var typeToBind = bindings.serializedProperty.GetArrayElementAtIndex(index)
-                    .FindPropertyRelative("m_Type");
-                var tag = bindings.serializedProperty.GetArrayElementAtIndex(index).FindPropertyRelative("m_Tag");
+                var bindingElement = bindings.serializedProperty.GetArrayElementAtIndex(index);
+                var injectableInterface = bindingElement.FindPropertyRelative("m_Interface");
+                var typeToBind = bindingElement.FindPropertyRelative("m_Type");
+                var tag = bindingElement.FindPropertyRelative("m_Tag");
+                var excludedPlatforms = bindingElement.FindPropertyRelative("m_ExcludedPlatforms");
 
+                // Draw C# Button
                 if (GUI.Button(new Rect(rect.x, rect.y, 30, rect.height - 5), "C#"))
                 {
                     var assetsPath = AssetDatabase.GetAllAssetPaths();
@@ -83,41 +81,49 @@ namespace SAS.Core.TagSystem.Editor
                 }
 
                 rect.y += 2;
-                var curActionIndex = Array.FindIndex(_allInterface,
-                    ele => ele.AssemblyQualifiedName == injectableInterface.stringValue);
-                var pos = new Rect(rect.x + 30, rect.y - 2, rect.width / 3, rect.height - 2);
+
+                // Injectable Interface Dropdown
+                var curActionIndex = Array.FindIndex(_allInterface, ele => ele.AssemblyQualifiedName == injectableInterface.stringValue);
+                var pos = new Rect(rect.x + 30, rect.y - 2, rect.width / 4, rect.height - 2);
                 int id = GUIUtility.GetControlID("injectableInterface".GetHashCode(), FocusType.Keyboard, pos);
                 if (curActionIndex != -1 || string.IsNullOrEmpty(injectableInterface.stringValue))
-                    Core.Editor.EditorUtility.DropDown(id, pos, _allInterface.Select(ele => Sanitize(ele.ToString())).ToArray(),
-                        curActionIndex, selectedIndex => SetSelectedInterface(injectableInterface, selectedIndex));
+                    EditorUtility.DropDown(id, pos, _allInterface.Select(ele => Sanitize(ele.ToString())).ToArray(), curActionIndex, selectedIndex => SetSelectedInterface(injectableInterface, selectedIndex));
                 else
-                    Core.Editor.EditorUtility.DropDown(id, pos, _allInterface.Select(ele => Sanitize(ele.ToString())).ToArray(),
-                        curActionIndex, injectableInterface.stringValue, Color.red,
-                        selectedIndex => SetSelectedInterface(injectableInterface, selectedIndex));
+                    EditorUtility.DropDown(id, pos, _allInterface.Select(ele => Sanitize(ele.ToString())).ToArray(), curActionIndex, injectableInterface.stringValue, Color.red, selectedIndex => SetSelectedInterface(injectableInterface, selectedIndex));
 
+                // Bind With Dropdown
                 var validTypes = GetAllSuitableTypes(injectableInterface.stringValue);
-                curActionIndex =
-                    Array.FindIndex(validTypes, ele => ele.AssemblyQualifiedName == typeToBind.stringValue);
-                pos = new Rect(rect.x + 30 + rect.width / 3, rect.y - 2, rect.width / 3, rect.height - 2);
+                curActionIndex = Array.FindIndex(validTypes, ele => ele.AssemblyQualifiedName == typeToBind.stringValue);
+                pos = new Rect(rect.x + 30 + rect.width / 4, rect.y - 2, rect.width / 4, rect.height - 2);
                 id = GUIUtility.GetControlID("bindable".GetHashCode(), FocusType.Keyboard, pos);
                 if (curActionIndex != -1)
-                    Core.Editor.EditorUtility.DropDown(id, pos, validTypes.Select(ele => Sanitize(ele.ToString())).ToArray(),
-                        curActionIndex, selectedIndex => SetSelectedType(typeToBind, validTypes[selectedIndex]));
+                    EditorUtility.DropDown(id, pos, validTypes.Select(ele => Sanitize(ele.ToString())).ToArray(), curActionIndex, selectedIndex => SetSelectedType(typeToBind, validTypes[selectedIndex]));
                 else
-                    Core.Editor.EditorUtility.DropDown(id, pos, validTypes.Select(ele => Sanitize(ele.ToString())).ToArray(),
-                        curActionIndex, string.IsNullOrEmpty(typeToBind.stringValue) ? "None" : typeToBind.stringValue,
-                        Color.red, selectedIndex => SetSelectedType(typeToBind, validTypes[selectedIndex]));
+                    EditorUtility.DropDown(id, pos, validTypes.Select(ele => Sanitize(ele.ToString())).ToArray(), curActionIndex, string.IsNullOrEmpty(typeToBind.stringValue) ? "None" : typeToBind.stringValue, Color.red, selectedIndex => SetSelectedType(typeToBind, validTypes[selectedIndex]));
 
-                pos = new Rect(rect.x + 30 + 2 * rect.width / 3, rect.y - 2, rect.width / 3 - 30, rect.height - 2);
+                // Tag Dropdown
+                pos = new Rect(rect.x + 30 + 2 * rect.width / 4, rect.y - 2, rect.width / 4, rect.height - 2);
                 id = GUIUtility.GetControlID("Tag".GetHashCode(), FocusType.Keyboard, pos);
                 bool changed = TagEditorUtility.DrawTagPopup(pos, tag, GUIContent.none);
-
                 if (changed)
                 {
                     serializedObject.ApplyModifiedProperties();
                     UnityEditor.EditorUtility.SetDirty(target);
                 }
+
+                // Excluded Platforms Dropdown (Same Line)
+                pos = new Rect(rect.x + 30 + 3 * rect.width / 4, rect.y - 2, rect.width / 4 - 30, rect.height - 2);
+                var platformNames = Enum.GetNames(typeof(PlatformType));
+                int selectedMask = GetSelectedMask(excludedPlatforms, platformNames);
+
+                int newMask = EditorGUI.MaskField(pos, selectedMask, platformNames);
+                if (newMask != selectedMask)
+                {
+                    SetSelectedPlatforms(excludedPlatforms, newMask, platformNames);
+                    serializedObject.ApplyModifiedProperties();
+                }
             };
+
         }
 
         private Type[] GetAllSuitableTypes(string injectableInterface)
@@ -125,8 +131,8 @@ namespace SAS.Core.TagSystem.Editor
             Type interfaceType = Type.GetType(injectableInterface);
             if (interfaceType == null)
                 return new Type[] { };
-            return Array.FindAll(_allBindableType,
-                type => type.IsSubclassOf(interfaceType) || interfaceType.IsAssignableFrom(type));
+            return Array.FindAll(_allBindableType, type => type.IsSubclassOf(interfaceType) || interfaceType.IsAssignableFrom(type));
+
         }
 
         private string Sanitize(string typeAsString)
@@ -150,5 +156,39 @@ namespace SAS.Core.TagSystem.Editor
                 sp.stringValue = _allBindableType[index].AssemblyQualifiedName;
             serializedObject.ApplyModifiedProperties();
         }
+
+        private int GetSelectedMask(SerializedProperty excludedPlatforms, string[] platformNames)
+        {
+            int mask = 0;
+            for (int i = 0; i < platformNames.Length; i++)
+            {
+                if (excludedPlatforms.arraySize > 0)
+                {
+                    for (int j = 0; j < excludedPlatforms.arraySize; j++)
+                    {
+                        if (excludedPlatforms.GetArrayElementAtIndex(j).enumValueIndex == i)
+                        {
+                            mask |= (1 << i);
+                            break;
+                        }
+                    }
+                }
+            }
+            return mask;
+        }
+
+        private void SetSelectedPlatforms(SerializedProperty excludedPlatforms, int mask, string[] platformNames)
+        {
+            excludedPlatforms.ClearArray();
+            for (int i = 0; i < platformNames.Length; i++)
+            {
+                if ((mask & (1 << i)) != 0)
+                {
+                    excludedPlatforms.InsertArrayElementAtIndex(excludedPlatforms.arraySize);
+                    excludedPlatforms.GetArrayElementAtIndex(excludedPlatforms.arraySize - 1).enumValueIndex = i;
+                }
+            }
+        }
+
     }
 }

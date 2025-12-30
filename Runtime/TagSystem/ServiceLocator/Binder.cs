@@ -7,7 +7,16 @@ namespace SAS.Core.TagSystem
 {
     public interface IBindable
     {
-        void OnInstanceCreated();
+    }
+
+    public interface IDestroyable
+    {
+        void OnDestroyed();
+    }
+
+    public interface IInitializable
+    {
+        void OnCreated();
     }
 
     [Serializable, CreateAssetMenu(menuName = "SAS/Binder")]
@@ -19,8 +28,11 @@ namespace SAS.Core.TagSystem
             [SerializeField] private string m_Interface;
             [SerializeField] private string m_Type;
             [SerializeField] private Tag m_Tag;
+            [SerializeField] private PlatformType[] m_ExcludedPlatforms;
+
             public Type InterfaceType => Type.GetType(m_Interface);
             public Tag Tag => m_Tag;
+
             public object CreateInstance(IContextBinder contextBinder)
             {
                 object instance = default;
@@ -28,37 +40,44 @@ namespace SAS.Core.TagSystem
 
                 if (type.IsSubclassOf(typeof(MonoBehaviour)))
                 {
-                    var results = GameObject.FindObjectsOfType(type);
+                    var results = GameObject.FindObjectsByType(type, FindObjectsSortMode.None);
                     foreach (var result in results)
                     {
-
                         instance = ((Component)result).GetComponent(type, Tag);
                         if (instance != null)
                             break;
                     }
+
                     if (instance == null)
-                        Debug.LogError($"No GameObject having component attached of the type:  {m_Type} with  tag: {m_Tag} found");
+                        Debug.LogError(
+                            $"No GameObject having component attached of the type:  {m_Type} with  tag: {m_Tag} found");
                 }
                 else
+                {
                     instance = Activator.CreateInstance(Type.GetType(m_Type), new[] { contextBinder });
+                }
 
-
-                InvokeInjectionEvent((IBindable)instance);
+                InvokeInjectionEvent(instance);
                 return instance;
             }
 
-            private void InvokeInjectionEvent(IBindable bindable)
+            internal bool IsPlatformExcluded()
             {
-                bindable.OnInstanceCreated();
+                return PlatformUtils.IsPlatformExcluded(m_ExcludedPlatforms);
+            }
+
+            private void InvokeInjectionEvent(object instance)
+            {
+                if (instance is IInitializable initializable)
+                    initializable.OnCreated();
             }
         }
-
 
 
         [SerializeField] private Binding[] m_Bindings;
         private Dictionary<Key, object> _cachedBindings = new Dictionary<Key, object>();
         internal IReadOnlyDictionary<Key, object> CachedBindings => _cachedBindings;
-
+        internal int refCount;
         private Key GetKey(Type type, Tag tag)
         {
             return new Key { type = type, tag = tag };
@@ -89,7 +108,6 @@ namespace SAS.Core.TagSystem
             if (!_cachedBindings.TryGetValue(key, out instance))
             {
                 instance = null;
-                Debug.LogError($"Required service of type {type.Name} with tag {tag} is not found");
                 return false;
             }
 
@@ -118,14 +136,31 @@ namespace SAS.Core.TagSystem
 
         private object CreateInstance(IContextBinder contextBinder, Type type, Tag tag)
         {
-            var binding = Array.Find(m_Bindings, ele => ele.InterfaceType.Equals(type) && ele.Tag == tag);
+            var binding = Array.Find(m_Bindings,
+                ele => ele.InterfaceType.Equals(type) && ele.Tag == tag && !ele.IsPlatformExcluded());
+            if (binding == null)
+            {
+                var potentialBinding = Array.Find(m_Bindings, ele => ele.InterfaceType.Equals(type) && ele.Tag == tag);
+
+                if (potentialBinding != null && potentialBinding.IsPlatformExcluded())
+                    Debug.LogError($"Binding for interface type '{type.FullName}' with tag '{tag}' exists but is excluded for the current platform: {Application.platform}.");
+                else
+                    Debug.Log($"No binding found for interface type '{type.FullName}' with tag '{tag}'.");
+
+                return null;
+            }
+
             return binding?.CreateInstance(contextBinder);
         }
 
         internal void Clear()
         {
+            foreach (var binding in _cachedBindings)
+            {
+                if (binding.Value is IDestroyable destroyable)
+                    destroyable.OnDestroyed();
+            }
             _cachedBindings.Clear();
         }
     }
 }
-
