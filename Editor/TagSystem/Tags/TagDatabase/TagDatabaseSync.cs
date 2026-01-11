@@ -33,20 +33,20 @@ namespace SAS.Core.TagSystem.Editor
         {
             var tagType = typeof(Tag);
 
-            var constFields = tagType
+            var idFields = tagType
                 .GetFields(BindingFlags.Public | BindingFlags.Static)
                 .Where(f =>
-                    f.IsLiteral &&
-                    !f.IsInitOnly &&
-                    f.FieldType == typeof(int));
+                    f.FieldType == typeof(int) &&
+                    (f.IsLiteral || f.IsInitOnly));
+
 
             var existing = database.Entries.ToDictionary(e => e.guid);
 
             bool changed = false;
 
-            foreach (var field in constFields)
+            foreach (var field in idFields)
             {
-                int guid = (int)field.GetRawConstantValue();
+                int guid = field.IsLiteral ? (int)field.GetRawConstantValue() : (int)field.GetValue(null);
                 string name = field.Name;
 
                 if (guid == 0)

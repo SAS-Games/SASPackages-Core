@@ -25,7 +25,7 @@ namespace SAS.Core.TagSystem.Editor
                 {
                     var component = componentTag.GetArrayElementAtIndex(index).FindPropertyRelative("m_Component");
                     var tag = componentTag.GetArrayElementAtIndex(index).FindPropertyRelative("m_Value");
-                 
+                   
                     EditorGUI.BeginDisabledGroup(true);
                     EditorGUI.ObjectField(new Rect(rect.x + 5, rect.y, rect.width / 2, rect.height), component.objectReferenceValue, typeof(Component), false);
 
@@ -34,16 +34,9 @@ namespace SAS.Core.TagSystem.Editor
                     Rect pos = new Rect(rect.width / 2 + 60, rect.y, rect.width / 2 - 20, rect.height);
                     int id = GUIUtility.GetControlID("SearchableStringDrawer".GetHashCode(), FocusType.Keyboard, pos);
                     
-                    Rect tagRect = new Rect(
-                        rect.x + rect.width / 2 + 10,
-                        rect.y,
-                        rect.width / 2 - 15,
-                        rect.height);
+                    Rect tagRect = new Rect(rect.x + rect.width / 2 + 10, rect.y, rect.width / 2 - 15, rect.height);
                     
-                    bool changed = TagEditorUtility.DrawTagPopup(
-                        tagRect,
-                        tag,
-                        GUIContent.none);
+                    bool changed = TagEditorUtility.DrawTagPopup(tagRect, tag, GUIContent.none);
 
                     if (changed)
                     {

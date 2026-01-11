@@ -19,20 +19,30 @@ namespace SAS.Core.TagSystem.Editor
         private void OnEnable()
         {
             _entries = serializedObject.FindProperty("entries");
+        }
 
-            _centeredLabel = new GUIStyle(EditorStyles.label)
+        private void EnsureStyles()
+        {
+            if (_centeredLabel == null)
             {
-                alignment = TextAnchor.MiddleCenter
-            };
+                _centeredLabel = new GUIStyle(EditorStyles.label)
+                {
+                    alignment = TextAnchor.MiddleCenter
+                };
+            }
 
-            _centeredTextField = new GUIStyle(EditorStyles.textField)
+            if (_centeredTextField == null)
             {
-                alignment = TextAnchor.MiddleCenter
-            };
+                _centeredTextField = new GUIStyle(EditorStyles.textField)
+                {
+                    alignment = TextAnchor.MiddleCenter
+                };
+            }
         }
 
         public override void OnInspectorGUI()
         {
+            EnsureStyles();
             EditorGUILayout.HelpBox(
                 "Tags are identified by GUIDs.\n" +
                 "Renaming only changes the display name and is safe.\n" +
@@ -163,7 +173,7 @@ namespace SAS.Core.TagSystem.Editor
                 EditorUtility.DisplayDialog("Duplicate Tag", $"A tag named '{newName}' already exists.", "OK");
                 return;
             }
-            
+
             string message =
                 $"Rename tag?\n\n" + $"{db.Entries[index]}  →  {newName}\n\n" +
                 "This only changes the display name.\n" +

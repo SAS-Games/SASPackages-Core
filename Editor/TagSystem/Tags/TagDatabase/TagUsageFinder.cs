@@ -76,6 +76,8 @@ namespace SAS.Core.TagSystem.Editor
             foreach (var sceneGuid in sceneGuids)
             {
                 var path = AssetDatabase.GUIDToAssetPath(sceneGuid);
+                if (!AssetDatabase.IsOpenForEdit(path))
+                    continue;
                 var scene = EditorSceneManager.OpenScene(path, OpenSceneMode.Additive);
 
                 foreach (var root in scene.GetRootGameObjects())

@@ -42,5 +42,10 @@ namespace SAS.Core.TagSystem
         {
             return tag.Id;
         }
+
+        public static int StringToHash(string value)
+        {
+            return Animator.StringToHash(value);
+        }
     }
 }
