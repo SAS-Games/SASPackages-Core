@@ -16,7 +16,7 @@ namespace SAS.Core.TagSystem.Editor
             EditorApplication.delayCall += SyncAllDatabases;
         }
 
-        [MenuItem("SAS/Tags/Sync TagDatabase")]
+        [MenuItem("Tools/Tags/Sync TagDatabase")]
         private static void SyncAllDatabases()
         {
             var databases = AssetDatabase
