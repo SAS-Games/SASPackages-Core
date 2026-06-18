@@ -161,25 +161,7 @@ namespace SAS.Core.TagSystem.Editor
                 }
             }
 
-            if (GUI.Button(addRect, "+"))
-            {
-                string newKeyName = ObjectNames.GetUniqueName(
-                    stringOptions.Entries.Select(e => e.name).ToArray(), "NewKey");
-
-                Undo.RecordObject(stringOptions, "Add String Option");
-                stringOptions.AddEntry(newKeyName);
-                EditorUtility.SetDirty(stringOptions);
-
-                var newEntry = stringOptions.Entries.Last();
-
-                guidProp.intValue = newEntry.guid;
-                resolvedNameProp.stringValue = newEntry.name;
-                sourceOptionsProp.objectReferenceValue = stringOptions;
-
-#if UNITY_EDITOR
-                lastKnownNameProp.stringValue = newEntry.name;
-#endif
-            }
+            TagEditorUtility.DrawCreateTagButton(addRect, stringOptions, guidProp, resolvedNameProp, sourceOptionsProp, lastKnownNameProp);
         }
     }
 }
