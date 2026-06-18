@@ -9,7 +9,7 @@ namespace SAS.Core.TagSystem
 {
     public static class ComponentExtensions
     {
-        private readonly static Dictionary<Type, Func<Component, Type, Tag, Component>> _componentCreator = new Dictionary<Type, Func<Component, Type, Tag, Component>>
+        private static readonly Dictionary<Type, Func<Component, Type, Tag, Component>> _componentCreator = new Dictionary<Type, Func<Component, Type, Tag, Component>>
         {
             { typeof(InjectAttribute), (comp, type, tag) => comp.AddComponent(type, tag) },
         };
@@ -52,14 +52,13 @@ namespace SAS.Core.TagSystem
         {
             instance = instance ?? component;
             var allFields = GetAllFields(instance);
-            TryGetContext(component.gameObject, out var context);
+            var binders = CollectBinders(component.gameObject);
 
             foreach (var field in allFields)
             {
                 var requirement = field.GetCustomAttribute<BaseRequiresAttribute>(false);
                 if (requirement != null)
                 {
-
                     if (requirement is BaseRequiresComponent)
                     {
                         var componentRequirement = requirement as BaseRequiresComponent;
@@ -87,7 +86,11 @@ namespace SAS.Core.TagSystem
                     else if (requirement is InjectAttribute)
                     {
                         var modelRequirement = requirement as InjectAttribute;
-                        Inject(context, instance, field, modelRequirement);
+                        foreach (var binder in binders)
+                        {
+                            if (Inject(binder, instance, field, modelRequirement))
+                                break;
+                        }
                     }
                 }
             }
@@ -97,18 +100,33 @@ namespace SAS.Core.TagSystem
         {
             instance = instance ?? component;
             var allFields = GetAllFields(instance);
-
-            if (!TryGetContext(component.gameObject, out var context))
-                Debug.LogError("No Context binder found in the scene");
+            var binders = CollectBinders(component.gameObject);
 
             foreach (var field in allFields)
             {
                 var requirement = field.GetCustomAttribute<InjectAttribute>(false);
-                if (requirement != null)
-                    Inject(context, instance, field, requirement);
+                if (requirement == null)
+                    continue;
+                bool injected = false;
+                foreach (var binder in binders)
+                {
+                    if (Inject(binder, instance, field, requirement))
+                    {
+                            injected = true;
+                            break;
+                    }
+                }
+                if (!injected)
+                {
+                    if (field.DeclaringType != null)
+                    {
+                        var message = $"Failed to inject `{field.FieldType.Name}` into `{field.DeclaringType.FullName}.{field.Name}` on `{component.name}`.\n" +
+                                      $"No matching binding found in Object, Scene, or Project-level contexts.";
+                        Debug.LogError(message);
+                    }
+                }
             }
         }
-
 
         private static IEnumerable<FieldInfo> GetAllFields(this object instance)
         {
@@ -137,10 +155,27 @@ namespace SAS.Core.TagSystem
             return array;
         }
 
-        private static bool TryGetContext(GameObject gameObject, out IContextBinder context)
+        private static List<IContextBinder> CollectBinders(GameObject gameObject)
+        {
+            var result = new List<IContextBinder>();
+
+            var objectBinder = gameObject.GetComponentInParent<IContextBinder>();
+            if (objectBinder is { BinderScope: Scope.ObjectLevel })
+                result.Add(objectBinder);
+
+            if (TryGetSceneLevelContext(gameObject, out var sceneLevelContext))
+                result.Add(sceneLevelContext);
+           
+            if (_cachedContext.TryGetValue("DontDestroyOnLoad", out var crossContext))
+                result.Add(crossContext);
+            
+            return result;
+        }
+
+        private static bool TryGetSceneLevelContext(GameObject gameObject, out IContextBinder context)
         {
             context = null;
-            if (gameObject.scene.isLoaded && !_cachedContext.TryGetValue(gameObject.scene.name, out context))
+             if (!_cachedContext.TryGetValue(gameObject.scene.name, out context) && gameObject.scene.isLoaded)
             {
                 var scene = gameObject.scene;
                 var rootObjects = scene.GetRootGameObjects();
@@ -148,53 +183,42 @@ namespace SAS.Core.TagSystem
                 {
                     if (rootObject.TryGetComponent(out context))
                     {
-                        _cachedContext[scene.name] = context;
-                        return true;
+                        if (context.BinderScope == Scope.SceneLevel)
+                        {
+                            _cachedContext[scene.name] = context;
+                            return true;
+                        }
                     }
-
                 }
                 return false;
             }
-            return true;
+             return context != null;
         }
 
-        private static void Inject(IContextBinder context, object instance, FieldInfo field, InjectAttribute requirement)
+        private static bool Inject(IContextBinder context, object instance, FieldInfo field, InjectAttribute requirement)
         {
-            if (context == null)
-            {
-                InjectCrossContext(instance, field, requirement);
-                return;
-            }
+            if (context == null) 
+                return false;
+            
             if (requirement.optional)
             {
                 if (context.TryGet(field.FieldType, out var obj))
+                {
                     field.SetValue(instance, obj);
+                    return true;
+                }
+                else
+                    return false;
             }
             else
             {
                 var value = context.GetOrCreate(field.FieldType, requirement.tag);
                 if (value != null)
+                {
                     field.SetValue(instance, value);
-                else
-                    InjectCrossContext(instance, field, requirement);
-            }
-        }
-
-        private static void InjectCrossContext(object instance, FieldInfo field, InjectAttribute requirement)
-        {
-            if (_cachedContext.TryGetValue("DontDestroyOnLoad", out var crossContext))
-            {
-                if (requirement.optional)
-                {
-                    if (crossContext.TryGet(field.FieldType, out var obj))
-                        field.SetValue(instance, obj);
+                    return true;
                 }
-                else
-                {
-                    var value = crossContext.GetOrCreate(field.FieldType, requirement.tag);
-                    if (value != null)
-                        field.SetValue(instance, value);
-                }
+                return false;
             }
         }
 
@@ -222,4 +246,3 @@ namespace SAS.Core.TagSystem
         }
     }
 }
-

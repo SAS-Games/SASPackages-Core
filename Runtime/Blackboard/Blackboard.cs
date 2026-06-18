@@ -110,6 +110,14 @@ namespace SAS.Core.BlackboardSystem
 
             return key;
         }
+        
+        public BlackboardEntry<T> GetEntry<T>(BlackboardKey key)
+        {
+            if (entries.TryGetValue(key, out var entry))
+                return entry as BlackboardEntry<T>;
+
+            return null;
+        }
 
         public bool ContainsKey(BlackboardKey key) => entries.ContainsKey(key);
 

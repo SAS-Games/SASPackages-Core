@@ -12,7 +12,7 @@ namespace SAS.Core.TagSystem
 
         public override string ToString()
         {
-#if UNITY_EDITOR
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
 #pragma warning disable CS0618 // Type or member is obsolete
             return Name;
 #pragma warning restore CS0618 // Type or member is obsolete
@@ -41,6 +41,11 @@ namespace SAS.Core.TagSystem
         public static explicit operator int(Tag tag)
         {
             return tag.Id;
+        }
+
+        public static int StringToHash(string value)
+        {
+            return Animator.StringToHash(value);
         }
     }
 }

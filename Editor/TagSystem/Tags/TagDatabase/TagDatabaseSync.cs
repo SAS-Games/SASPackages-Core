@@ -16,7 +16,7 @@ namespace SAS.Core.TagSystem.Editor
             EditorApplication.delayCall += SyncAllDatabases;
         }
 
-        [MenuItem("SAS/Tags/Sync TagDatabase")]
+        [MenuItem("Tools/Tags/Sync TagDatabase")]
         private static void SyncAllDatabases()
         {
             var databases = AssetDatabase
@@ -33,20 +33,46 @@ namespace SAS.Core.TagSystem.Editor
         {
             var tagType = typeof(Tag);
 
-            var constFields = tagType
+            var idFields = tagType
                 .GetFields(BindingFlags.Public | BindingFlags.Static)
-                .Where(f =>
-                    f.IsLiteral &&
-                    !f.IsInitOnly &&
-                    f.FieldType == typeof(int));
+                .Where(f => f.FieldType == typeof(int) && (f.IsLiteral || f.IsInitOnly));
+            
+            var duplicateGroups = idFields
+                .Select(f => new
+                {
+                    Name = f.Name,
+                    Value = f.IsLiteral ? (int)f.GetRawConstantValue() : (int)f.GetValue(null)
+                })
+                .GroupBy(x => x.Value).Where(g => g.Count() > 1).ToList();
+
+            if (duplicateGroups.Count > 0)
+            {
+                string message = "Duplicate Tag GUIDs detected!\n\n";
+
+                foreach (var group in duplicateGroups)
+                {
+                    message += $"GUID: {group.Key}\n";
+                    foreach (var item in group)
+                    {
+                        message += $"  - {item.Name}\n";
+                    }
+                    message += "\n";
+                }
+
+                Debug.LogError("[TagDatabase] Duplicate GUIDs found!\n" + message, database);
+
+                EditorUtility.DisplayDialog("Duplicate Tag GUIDs", message, "OK");
+
+                return;
+            }
 
             var existing = database.Entries.ToDictionary(e => e.guid);
 
             bool changed = false;
 
-            foreach (var field in constFields)
+            foreach (var field in idFields)
             {
-                int guid = (int)field.GetRawConstantValue();
+                int guid = field.IsLiteral ? (int)field.GetRawConstantValue() : (int)field.GetValue(null);
                 string name = field.Name;
 
                 if (guid == 0)
