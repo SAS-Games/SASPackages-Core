@@ -20,5 +20,7 @@ namespace SAS.Core.TagSystem
 
         void Add(Type type, object instance, Tag tag = default);
         IReadOnlyDictionary<Key, object> GetAll();
+        
+        bool Remove(object instance, Tag tag = default);
     }
 }

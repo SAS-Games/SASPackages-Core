@@ -11,12 +11,12 @@ namespace SAS.Core.TagSystem
 
     public interface IDestroyable
     {
-        void OnDestroyed();
+        void OnDestroyed(IContextBinder contextBinder);
     }
 
     public interface IInitializable
     {
-        void OnCreated();
+        void OnCreated(IContextBinder contextBinder);
     }
 
     [Serializable, CreateAssetMenu(menuName = "SAS/Binder")]
@@ -49,15 +49,14 @@ namespace SAS.Core.TagSystem
                     }
 
                     if (instance == null)
-                        Debug.LogError(
-                            $"No GameObject having component attached of the type:  {m_Type} with  tag: {m_Tag} found");
+                        Debug.LogError($"No GameObject having component attached of the type:  {m_Type} with  tag: {m_Tag} found");
                 }
                 else
                 {
                     instance = Activator.CreateInstance(Type.GetType(m_Type), new[] { contextBinder });
                 }
 
-                InvokeInjectionEvent(instance);
+                InvokeInjectionEvent(instance, contextBinder);
                 return instance;
             }
 
@@ -66,10 +65,10 @@ namespace SAS.Core.TagSystem
                 return PlatformUtils.IsPlatformExcluded(m_ExcludedPlatforms);
             }
 
-            private void InvokeInjectionEvent(object instance)
+            private void InvokeInjectionEvent(object instance, IContextBinder contextBinder)
             {
                 if (instance is IInitializable initializable)
-                    initializable.OnCreated();
+                    initializable.OnCreated(contextBinder);
             }
         }
 
@@ -153,14 +152,29 @@ namespace SAS.Core.TagSystem
             return binding?.CreateInstance(contextBinder);
         }
 
-        internal void Clear()
+        internal void Clear(IContextBinder contextBinder)
         {
             foreach (var binding in _cachedBindings)
             {
                 if (binding.Value is IDestroyable destroyable)
-                    destroyable.OnDestroyed();
+                    destroyable.OnDestroyed(contextBinder);
             }
             _cachedBindings.Clear();
+        }
+        
+        internal bool Remove(object instance, Tag tag)
+        {
+            var keysToRemove = _cachedBindings
+                .Where(x =>
+                    ReferenceEquals(x.Value, instance) &&
+                    x.Key.tag == tag)
+                .Select(x => x.Key)
+                .ToList();
+
+            foreach (var key in keysToRemove)
+                _cachedBindings.Remove(key);
+
+            return keysToRemove.Count > 0;
         }
     }
 }

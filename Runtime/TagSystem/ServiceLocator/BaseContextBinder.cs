@@ -78,6 +78,11 @@ namespace SAS.Core.TagSystem
             return m_Binder.CachedBindings;
         }
 
+        bool IContextBinder.Remove(object instance, Tag tag = default)
+        {
+           return m_Binder.Remove(instance, tag);
+        }
+
         protected override void OnDestroy()
         {
             if (gameObject != null && gameObject.scene != null && !string.IsNullOrEmpty(gameObject.scene.name))
@@ -86,7 +91,7 @@ namespace SAS.Core.TagSystem
             {
                 --m_Binder.refCount;
                 if (m_Binder.refCount==0)
-                    m_Binder.Clear();
+                    m_Binder.Clear(this);
             }
 
             base.OnDestroy();
