@@ -22,7 +22,7 @@ namespace SAS.Core.TagSystem
         {
             var hashCode = -1744019480;
             hashCode = hashCode * -1521134295 + EqualityComparer<Type>.Default.GetHashCode(type);
-            hashCode = hashCode * -1521134295 + EqualityComparer<string>.Default.GetHashCode(tag.ToString());
+            hashCode = hashCode * -1521134295 + tag.GetHashCode();
             return hashCode;
         }
     }

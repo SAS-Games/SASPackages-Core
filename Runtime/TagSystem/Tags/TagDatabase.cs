@@ -22,7 +22,7 @@ namespace SAS.Core.TagSystem
         [SerializeField] private List<Entry> entries = new();
 
         public IReadOnlyList<Entry> Entries => entries;
-        private static Dictionary<int, string> _lookup;
+        private Dictionary<int, string> _lookup;
 
         private void OnEnable()
         {
@@ -45,8 +45,11 @@ namespace SAS.Core.TagSystem
         
         public string GetNameByGuid(int guid)
         {
-            if (guid == 0 || _lookup == null)
+            if (guid == 0)
                 return null;
+
+            if (_lookup == null)
+                BuildLookup();
 
             return _lookup.GetValueOrDefault(guid);
         }

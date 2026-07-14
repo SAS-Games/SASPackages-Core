@@ -7,15 +7,24 @@ namespace SAS.Core.TagSystem
     public partial struct Tag : IEquatable<Tag>
     {
         [SerializeField, ReadOnly] private int guid; // identity
+#if UNITY_EDITOR
+        [SerializeField] private string resolvedName;
+        [SerializeField] private TagDatabase sourceOptions;
+        [SerializeField] private string lastKnownName;
+        private bool _isResolved;
+#endif
+
         public int Id => guid;
         public bool IsValid => guid != 0;
 
         public override string ToString()
         {
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
+#if UNITY_EDITOR
 #pragma warning disable CS0618 // Type or member is obsolete
-            return Name;
+            var name = Name;
 #pragma warning restore CS0618 // Type or member is obsolete
+
+            return string.IsNullOrEmpty(name) ? guid.ToString() : name;
 #else
             return guid.ToString();
 #endif

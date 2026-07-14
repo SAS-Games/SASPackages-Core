@@ -6,11 +6,6 @@ namespace SAS.Core.TagSystem
 #if UNITY_EDITOR
     public partial struct Tag
     {
-        [SerializeField] private string resolvedName;
-        [SerializeField] private TagDatabase sourceOptions;
-        private bool _isResolved;
-        [SerializeField] private string lastKnownName;
-
         [Obsolete("Tag.Name is for Editor use only. " + "Do NOT use this in gameplay code. Use Tag.Id instead.", false)]
         public string Name
         {
