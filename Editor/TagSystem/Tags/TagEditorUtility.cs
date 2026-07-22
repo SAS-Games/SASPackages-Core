@@ -6,7 +6,7 @@ namespace SAS.Core.TagSystem.Editor
 {
     public static class TagEditorUtility
     {
-        private static string DatabasePath => $"TagDatabase/{TagDatabase.NAME}";
+        private static TagDatabase s_CachedDatabase;
 
         public static bool DrawTagPopup(Rect position, SerializedProperty tagProperty, GUIContent label)
         {
@@ -15,13 +15,14 @@ namespace SAS.Core.TagSystem.Editor
             var sourceOptionsProp = tagProperty.FindPropertyRelative("sourceOptions");
             var lastKnownNameProp = tagProperty.FindPropertyRelative("lastKnownName");
 
-            if (guidProp == null)
+            if (guidProp == null || resolvedNameProp == null || sourceOptionsProp == null || lastKnownNameProp == null)
             {
                 EditorGUI.HelpBox(position, "Invalid Tag property.", MessageType.Error);
                 return false;
             }
 
-            var database = Resources.Load<TagDatabase>(DatabasePath);
+            TagDatabase database = GetTagDatabase();
+
             if (database == null)
             {
                 EditorGUI.HelpBox(position, "TagDatabase not found.", MessageType.Error);
@@ -30,7 +31,7 @@ namespace SAS.Core.TagSystem.Editor
 
             var entries = database.Entries;
 
-            // +2 → <None> + <Add New>
+            // <None> + entries + <Add New>
             string[] options = new string[entries.Count + 2];
             options[0] = "<None>";
 
@@ -39,6 +40,7 @@ namespace SAS.Core.TagSystem.Editor
             for (int i = 0; i < entries.Count; i++)
             {
                 options[i + 1] = entries[i].name;
+
                 if (entries[i].guid == guidProp.intValue)
                     selectedIndex = i + 1;
             }
@@ -48,58 +50,49 @@ namespace SAS.Core.TagSystem.Editor
 
             EditorGUI.BeginProperty(position, label, tagProperty);
 
-            int newIndex = EditorGUI.Popup(position, label.text, selectedIndex, options);
+            int newIndex = EditorGUI.Popup(
+                position,
+                label.text,
+                selectedIndex,
+                options);
 
             bool changed = false;
 
-            // --- Add New Tag selected ---
+            // Add New Tag selected
             if (newIndex == addNewIndex)
             {
-                string defaultName = ObjectNames.GetUniqueName(
-                    entries.Select(e => e.name).ToArray(),
-                    "NewTag");
+                string defaultName = ObjectNames.GetUniqueName(entries.Select(entry => entry.name).ToArray(), "NewTag");
 
                 TagNamePromptWindow.Show("Create Tag", defaultName, newName =>
-                {
-                    // Validation
-                    if (entries.Any(e => e.name == newName))
                     {
-                        EditorUtility.DisplayDialog(
-                            "Duplicate Tag",
-                            $"A tag named '{newName}' already exists.",
-                            "OK");
-                        return;
-                    }
-
-                    Undo.RecordObject(database, "Add Tag");
-                    database.AddEntry(newName);
-                    EditorUtility.SetDirty(database);
-
-                    var newEntry = database.Entries.Last();
-
-                    guidProp.intValue = newEntry.guid;
-                    resolvedNameProp.stringValue = newEntry.name;
-                    sourceOptionsProp.objectReferenceValue = database;
-                    lastKnownNameProp.stringValue = newEntry.name;
-
-                    tagProperty.serializedObject.ApplyModifiedProperties();
-                });
+                        CreateAndAssignTag(
+                            database,
+                            tagProperty,
+                            guidProp,
+                            resolvedNameProp,
+                            sourceOptionsProp,
+                            lastKnownNameProp,
+                            newName);
+                    });
 
                 EditorGUI.EndProperty();
                 return false;
             }
 
-            // --- Normal selection ---
+            // Normal selection
             if (newIndex != selectedIndex)
             {
                 if (newIndex == 0)
                 {
                     guidProp.intValue = 0;
-                    resolvedNameProp.stringValue = "";
+                    resolvedNameProp.stringValue = string.Empty;
+                    sourceOptionsProp.objectReferenceValue = null;
+                    lastKnownNameProp.stringValue = string.Empty;
                 }
                 else
                 {
                     var entry = entries[newIndex - 1];
+
                     guidProp.intValue = entry.guid;
                     resolvedNameProp.stringValue = entry.name;
                     sourceOptionsProp.objectReferenceValue = database;
@@ -113,18 +106,27 @@ namespace SAS.Core.TagSystem.Editor
             return changed;
         }
 
-        public static bool DrawCreateTagButton(Rect rect, TagDatabase database, SerializedProperty guidProp,
-            SerializedProperty resolvedNameProp, SerializedProperty sourceOptionsProp,
-            SerializedProperty lastKnownNameProp = null)
+        public static bool DrawCreateTagButton(Rect rect, TagDatabase database, SerializedProperty guidProp, SerializedProperty resolvedNameProp, SerializedProperty sourceOptionsProp, SerializedProperty lastKnownNameProp = null)
         {
             if (!GUI.Button(rect, "+"))
                 return false;
 
-            string newName = ObjectNames.GetUniqueName(database.Entries.Select(e => e.name).ToArray(), "NewTag");
+            if (database == null)
+            {
+                Debug.LogError("[TagSystem] Cannot create a tag because TagDatabase is null.");
+                return false;
+            }
+
+            string newName = ObjectNames.GetUniqueName(
+                database.Entries.Select(entry => entry.name).ToArray(),
+                "NewTag");
 
             Undo.RecordObject(database, "Add Tag");
+
             database.AddEntry(newName);
+
             EditorUtility.SetDirty(database);
+            AssetDatabase.SaveAssetIfDirty(database);
 
             var newEntry = database.Entries.Last();
 
@@ -136,6 +138,78 @@ namespace SAS.Core.TagSystem.Editor
                 lastKnownNameProp.stringValue = newEntry.name;
 
             return true;
+        }
+
+        /// <summary>
+        /// Finds the TagDatabase anywhere under Assets.
+        /// The asset can be renamed or moved to another folder.
+        /// </summary>
+        public static TagDatabase GetTagDatabase()
+        {
+            if (s_CachedDatabase != null)
+                return s_CachedDatabase;
+
+            string[] guids = AssetDatabase.FindAssets($"t:{nameof(TagDatabase)}", new[] { "Assets" });
+
+            if (guids.Length == 0)
+                return null;
+
+            if (guids.Length > 1)
+            {
+                Debug.LogWarning($"[TagSystem] Found {guids.Length} TagDatabase assets. " + "Only one TagDatabase should exist. The first valid database will be used.");
+            }
+
+            foreach (string guid in guids)
+            {
+                string assetPath = AssetDatabase.GUIDToAssetPath(guid);
+                TagDatabase database = AssetDatabase.LoadAssetAtPath<TagDatabase>(assetPath);
+
+                if (database == null)
+                    continue;
+
+                s_CachedDatabase = database;
+                return s_CachedDatabase;
+            }
+
+            return null;
+        }
+
+        public static void ClearDatabaseCache()
+        {
+            s_CachedDatabase = null;
+        }
+
+        private static void CreateAndAssignTag(TagDatabase database, SerializedProperty tagProperty, SerializedProperty guidProp, SerializedProperty resolvedNameProp, SerializedProperty sourceOptionsProp, SerializedProperty lastKnownNameProp, string newName)
+        {
+            newName = newName?.Trim();
+
+            if (string.IsNullOrWhiteSpace(newName))
+            {
+                EditorUtility.DisplayDialog("Invalid Tag", "Tag name cannot be empty.", "OK");
+                return;
+            }
+
+            if (database.Entries.Any(entry => string.Equals(entry.name, newName, System.StringComparison.OrdinalIgnoreCase)))
+            {
+                EditorUtility.DisplayDialog("Duplicate Tag", $"A tag named '{newName}' already exists.", "OK");
+                return;
+            }
+
+            Undo.RecordObject(database, "Add Tag");
+
+            database.AddEntry(newName);
+
+            EditorUtility.SetDirty(database);
+            AssetDatabase.SaveAssetIfDirty(database);
+
+            var newEntry = database.Entries.Last();
+
+            guidProp.intValue = newEntry.guid;
+            resolvedNameProp.stringValue = newEntry.name;
+            sourceOptionsProp.objectReferenceValue = database;
+            lastKnownNameProp.stringValue = newEntry.name;
+
+            tagProperty.serializedObject.ApplyModifiedProperties();
         }
     }
 }
