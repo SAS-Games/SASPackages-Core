@@ -50,11 +50,7 @@ namespace SAS.Core.TagSystem.Editor
 
             EditorGUI.BeginProperty(position, label, tagProperty);
 
-            int newIndex = EditorGUI.Popup(
-                position,
-                label.text,
-                selectedIndex,
-                options);
+            int newIndex = EditorGUI.Popup(position, label.text, selectedIndex, options);
 
             bool changed = false;
 
@@ -65,14 +61,7 @@ namespace SAS.Core.TagSystem.Editor
 
                 TagNamePromptWindow.Show("Create Tag", defaultName, newName =>
                     {
-                        CreateAndAssignTag(
-                            database,
-                            tagProperty,
-                            guidProp,
-                            resolvedNameProp,
-                            sourceOptionsProp,
-                            lastKnownNameProp,
-                            newName);
+                        CreateAndAssignTag(database, tagProperty, guidProp, resolvedNameProp, sourceOptionsProp, lastKnownNameProp, newName);
                     });
 
                 EditorGUI.EndProperty();
@@ -117,9 +106,7 @@ namespace SAS.Core.TagSystem.Editor
                 return false;
             }
 
-            string newName = ObjectNames.GetUniqueName(
-                database.Entries.Select(entry => entry.name).ToArray(),
-                "NewTag");
+            string newName = ObjectNames.GetUniqueName(database.Entries.Select(entry => entry.name).ToArray(), "NewTag");
 
             Undo.RecordObject(database, "Add Tag");
 
@@ -141,37 +128,15 @@ namespace SAS.Core.TagSystem.Editor
         }
 
         /// <summary>
-        /// Finds the TagDatabase anywhere under Assets.
-        /// The asset can be renamed or moved to another folder.
+        /// Finds or creates the editor-only TagDatabase.
         /// </summary>
         public static TagDatabase GetTagDatabase()
         {
             if (s_CachedDatabase != null)
                 return s_CachedDatabase;
 
-            string[] guids = AssetDatabase.FindAssets($"t:{nameof(TagDatabase)}", new[] { "Assets" });
-
-            if (guids.Length == 0)
-                return null;
-
-            if (guids.Length > 1)
-            {
-                Debug.LogWarning($"[TagSystem] Found {guids.Length} TagDatabase assets. " + "Only one TagDatabase should exist. The first valid database will be used.");
-            }
-
-            foreach (string guid in guids)
-            {
-                string assetPath = AssetDatabase.GUIDToAssetPath(guid);
-                TagDatabase database = AssetDatabase.LoadAssetAtPath<TagDatabase>(assetPath);
-
-                if (database == null)
-                    continue;
-
-                s_CachedDatabase = database;
-                return s_CachedDatabase;
-            }
-
-            return null;
+            s_CachedDatabase = TagDatabaseEditorUtility.GetOrCreateDatabase(TagDatabase.NAME);
+            return s_CachedDatabase;
         }
 
         public static void ClearDatabaseCache()

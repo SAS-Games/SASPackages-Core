@@ -8,7 +8,6 @@ namespace SAS.Core.TagSystem
     /// Editor / Development-time tag name database.
     /// Not intended for runtime gameplay logic.
     /// </summary>
-    [CreateAssetMenu(menuName = "SAS/TagDatabase List")]
     public class TagDatabase : ScriptableObject
     {
         public static string NAME = "Tag Database";

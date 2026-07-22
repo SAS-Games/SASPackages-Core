@@ -38,10 +38,7 @@ namespace SAS.Core.TagSystem.Editor
                 else
                 {
                     string resourcePath = attr.SourceFieldName;
-                    if (resourcePath.EndsWith(".asset"))
-                        resourcePath = resourcePath[..^6];
-
-                    stringOptions = Resources.Load<TagDatabase>(resourcePath);
+                    stringOptions = TagDatabaseEditorUtility.LoadEditorResourceDatabase(resourcePath);
                 }
             }
 
@@ -49,7 +46,7 @@ namespace SAS.Core.TagSystem.Editor
                 stringOptions = sourceOptionsProp.objectReferenceValue as TagDatabase;
 
             if (stringOptions == null)
-                stringOptions = Resources.Load<TagDatabase>($"TagDatabase/{TagDatabase.NAME}");
+                stringOptions = TagEditorUtility.GetTagDatabase();
 
             if (stringOptions == null)
             {
@@ -136,7 +133,7 @@ namespace SAS.Core.TagSystem.Editor
                     {
                         guidProp.intValue = 0;
                         resolvedNameProp.stringValue = "";
-                        sourceOptionsProp.objectReferenceValue = stringOptions;
+                        sourceOptionsProp.objectReferenceValue = null;
                     }
                     else
                     {
