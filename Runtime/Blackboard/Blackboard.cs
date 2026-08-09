@@ -63,6 +63,19 @@ namespace SAS.Core.BlackboardSystem
             return value != null;
         }
 
+        public bool TryGetValue(string key, out object value)
+        {
+            value = null;
+            if (string.IsNullOrEmpty(key))
+                return false;
+
+            if (!entries.TryGetValue(new BlackboardKey(key), out object entry) || entry is not IBlackboardEntry blackboardEntry)
+                return false;
+
+            value = blackboardEntry.BoxedValue;
+            return true;
+        }
+
         public T GetValue<T>(BlackboardKey key)
         {
             if (entries.TryGetValue(key, out var entry))
@@ -87,6 +100,41 @@ namespace SAS.Core.BlackboardSystem
             }
             else
                 entries[key] = new BlackboardEntry<T>(key, value); // Create new entry if it doesn�t exist
+        }
+
+        public void SetValue(string key, object value)
+        {
+            if (string.IsNullOrEmpty(key))
+                return;
+
+            BlackboardKey blackboardKey = GetOrRegisterKey(key);
+            if (entries.TryGetValue(blackboardKey, out object existingEntry) && existingEntry is IBlackboardEntry blackboardEntry)
+            {
+                blackboardEntry.SetBoxedValue(value);
+                return;
+            }
+
+            switch (value)
+            {
+                case bool boolValue:
+                    SetValue(blackboardKey, boolValue);
+                    break;
+                case int intValue:
+                    SetValue(blackboardKey, intValue);
+                    break;
+                case float floatValue:
+                    SetValue(blackboardKey, floatValue);
+                    break;
+                case string stringValue:
+                    SetValue(blackboardKey, stringValue);
+                    break;
+                case UnityEngine.Object unityObject:
+                    SetValue(blackboardKey, unityObject);
+                    break;
+                default:
+                    SetValue<object>(blackboardKey, value);
+                    break;
+            }
         }
 
         internal void SetValue<T>(BlackboardKey key, T value, bool readyOnly)
@@ -121,10 +169,31 @@ namespace SAS.Core.BlackboardSystem
 
         public bool ContainsKey(BlackboardKey key) => entries.ContainsKey(key);
 
+        public bool Contains(string key) => !string.IsNullOrEmpty(key) && ContainsKey(new BlackboardKey(key));
+
         public void Remove(BlackboardKey key) => entries.Remove(key);
 
+        public bool Remove(string key)
+        {
+            if (string.IsNullOrEmpty(key))
+                return false;
+
+            BlackboardKey blackboardKey = new BlackboardKey(key);
+            if (!entries.ContainsKey(blackboardKey))
+                return false;
+
+            entries.Remove(blackboardKey);
+            return true;
+        }
+
+        public interface IBlackboardEntry
+        {
+            object BoxedValue { get; }
+            void SetBoxedValue(object value);
+        }
+
         [Serializable]
-        public class BlackboardEntry<T>
+        public class BlackboardEntry<T> : IBlackboardEntry
         {
             public BlackboardKey Key { get; }
             public T Value { get; private set; }
@@ -140,6 +209,25 @@ namespace SAS.Core.BlackboardSystem
             public virtual void SetValue(T value)
             {
                 Value = value;
+            }
+
+            object IBlackboardEntry.BoxedValue => Value;
+
+            void IBlackboardEntry.SetBoxedValue(object value)
+            {
+                if (value is T typedValue)
+                {
+                    SetValue(typedValue);
+                    return;
+                }
+
+                if (value == null && !typeof(T).IsValueType)
+                {
+                    SetValue(default);
+                    return;
+                }
+
+                throw new InvalidOperationException($"Cannot assign {value?.GetType().Name ?? "null"} to blackboard key {Key} ({typeof(T).Name}).");
             }
 
             public override bool Equals(object obj) => obj is BlackboardEntry<T> other && other.Key == Key;
