@@ -1,6 +1,5 @@
 using System;
 using System.Threading;
-using System.Threading.Tasks;
 using UnityEngine;
 
 [Serializable]
@@ -23,13 +22,14 @@ public class AnimatorSetBoolNode : ActionNode<AnimatorSetBoolData>
     {
     }
 
-    public override Task ExecuteAsync(ActionContext context, CancellationToken token)
+    public override async Awaitable ExecuteAsync(ActionContext context, CancellationToken token)
     {
+        await Awaitable.MainThreadAsync();
         token.ThrowIfCancellationRequested();
 
         AnimatorSetBoolData data = _selector.GetNext();
         if (data == null || string.IsNullOrEmpty(data.parameterName) || context.Owner == null)
-            return Task.CompletedTask;
+            return;
 
         Animator animator = context.Owner.GetComponentInParent<Animator>();
         if (animator == null)
@@ -38,6 +38,5 @@ public class AnimatorSetBoolNode : ActionNode<AnimatorSetBoolData>
         if (animator != null)
             animator.SetBool(data.parameterName, data.value);
 
-        return Task.CompletedTask;
     }
 }

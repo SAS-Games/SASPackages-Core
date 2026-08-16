@@ -1,10 +1,10 @@
 using System.Threading;
-using System.Threading.Tasks;
+using UnityEngine;
 
 public interface IActionNode
 {
     void Init(ActionContext context);
-    Task ExecuteAsync(ActionContext context, CancellationToken token);
+    Awaitable ExecuteAsync(ActionContext context, CancellationToken token);
      void Reset();
 }
 

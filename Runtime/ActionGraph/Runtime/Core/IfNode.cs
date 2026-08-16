@@ -1,6 +1,6 @@
 using System;
 using System.Threading;
-using System.Threading.Tasks;
+using UnityEngine;
 
 public interface ICondition
 {
@@ -26,7 +26,7 @@ public class IfNode : IActionNode
         (_falseNode as IActionNode)?.Init(context);
     }
 
-    public async Task ExecuteAsync(ActionContext context, CancellationToken token)
+    public async Awaitable ExecuteAsync(ActionContext context, CancellationToken token)
     {
         token.ThrowIfCancellationRequested();
 

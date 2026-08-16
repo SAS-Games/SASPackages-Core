@@ -1,5 +1,5 @@
 using System.Threading;
-using System.Threading.Tasks;
+using UnityEngine;
 
 public abstract class ActionNode<T> : IActionNode
 {
@@ -16,7 +16,7 @@ public abstract class ActionNode<T> : IActionNode
     {
     }
 
-    public abstract Task ExecuteAsync(ActionContext context, CancellationToken token);
+    public abstract Awaitable ExecuteAsync(ActionContext context, CancellationToken token);
     
     public virtual void Reset()
     {

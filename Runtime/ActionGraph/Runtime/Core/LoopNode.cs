@@ -1,5 +1,5 @@
 using System.Threading;
-using System.Threading.Tasks;
+using UnityEngine;
 
 public class LoopNode : IActionNode
 {
@@ -21,7 +21,7 @@ public class LoopNode : IActionNode
         _child?.Init(context);
     }
 
-    public async Task ExecuteAsync(ActionContext context, CancellationToken token)
+    public async Awaitable ExecuteAsync(ActionContext context, CancellationToken token)
     {
         for (int i = 0; i < _maxIterations; i++)
         {

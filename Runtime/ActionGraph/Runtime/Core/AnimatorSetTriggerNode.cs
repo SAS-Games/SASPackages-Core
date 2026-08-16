@@ -1,6 +1,5 @@
 using System;
 using System.Threading;
-using System.Threading.Tasks;
 using UnityEngine;
 
 [Serializable]
@@ -24,13 +23,14 @@ public class AnimatorSetTriggerNode : ActionNode<AnimatorSetTriggerData>
     {
     }
 
-    public override Task ExecuteAsync(ActionContext context, CancellationToken token)
+    public override async Awaitable ExecuteAsync(ActionContext context, CancellationToken token)
     {
+        await Awaitable.MainThreadAsync();
         token.ThrowIfCancellationRequested();
 
         AnimatorSetTriggerData data = _selector.GetNext();
         if (data == null || string.IsNullOrEmpty(data.parameterName) || context.Owner == null)
-            return Task.CompletedTask;
+            return;
 
         Animator animator = context.Owner.GetComponentInParent<Animator>();
         if (animator == null)
@@ -50,6 +50,5 @@ public class AnimatorSetTriggerNode : ActionNode<AnimatorSetTriggerData>
             animator.SetTrigger(data.parameterName);
         }
 
-        return Task.CompletedTask;
     }
 }

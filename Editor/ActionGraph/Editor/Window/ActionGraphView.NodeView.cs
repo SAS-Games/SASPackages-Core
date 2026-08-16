@@ -9,6 +9,8 @@ public partial class ActionGraphView
 {
     private sealed class ActionGraphNodeView : Node
     {
+        private readonly Label _descriptionLabel;
+
         public readonly NodeConfig Config;
         public readonly Dictionary<OutputSlot, Port> OutputPorts = new();
         public Port InputPort { get; }
@@ -16,6 +18,9 @@ public partial class ActionGraphView
         public ActionGraphNodeView(
             NodeConfig config,
             string titleText,
+            string descriptionText,
+            bool isGroup,
+            Action openGroup,
             bool isRoot,
             Action delete,
             bool canCollapseBranch,
@@ -34,6 +39,41 @@ public partial class ActionGraphView
             style.minHeight = MinNodeHeight;
             mainContainer.style.flexGrow = 1f;
             mainContainer.style.minHeight = 0f;
+            tooltip = descriptionText;
+
+            if (isGroup && openGroup != null)
+            {
+                var openButton = new Button(openGroup)
+                {
+                    text = "›",
+                    tooltip = "Enter this Sequence or Parallel node"
+                };
+                openButton.style.width = 24f;
+                openButton.style.height = 18f;
+                openButton.style.marginLeft = 4f;
+                titleContainer.Add(openButton);
+
+                titleContainer.RegisterCallback<MouseDownEvent>(evt =>
+                {
+                    var targetElement = evt.target as VisualElement;
+                    bool isButton = targetElement is Button ||
+                                    targetElement?.GetFirstAncestorOfType<Button>() != null;
+                    if (evt.clickCount != 2 || isButton)
+                        return;
+
+                    openGroup();
+                    evt.StopPropagation();
+                }, TrickleDown.TrickleDown);
+
+                RegisterCallback<KeyDownEvent>(evt =>
+                {
+                    if (evt.keyCode != KeyCode.Return && evt.keyCode != KeyCode.KeypadEnter)
+                        return;
+
+                    openGroup();
+                    evt.StopPropagation();
+                });
+            }
 
             if (!isRoot)
             {
@@ -66,6 +106,17 @@ public partial class ActionGraphView
             extensionContainer.style.flexGrow = 1f;
             extensionContainer.style.minHeight = 0f;
 
+            _descriptionLabel = new Label();
+            _descriptionLabel.style.whiteSpace = WhiteSpace.Normal;
+            _descriptionLabel.style.marginLeft = 8f;
+            _descriptionLabel.style.marginRight = 8f;
+            _descriptionLabel.style.marginTop = 4f;
+            _descriptionLabel.style.marginBottom = 6f;
+            _descriptionLabel.style.color = new Color(0.78f, 0.78f, 0.78f);
+            _descriptionLabel.style.fontSize = 11f;
+            extensionContainer.Add(_descriptionLabel);
+            SetDescription(descriptionText);
+
             var inspectorScroll = new ScrollView(ScrollViewMode.Vertical)
             {
                 horizontalScrollerVisibility = ScrollerVisibility.Hidden,
@@ -87,6 +138,74 @@ public partial class ActionGraphView
                 persistGeometry?.Invoke(this);
             });
             RefreshExpandedState();
+        }
+
+        public void SetDescription(string descriptionText)
+        {
+            string value = descriptionText ?? string.Empty;
+            _descriptionLabel.text = value;
+            tooltip = value;
+        }
+
+        public void SetDebugState(ActionGraphDebugState? state, Color baseTitleColor)
+        {
+            if (!state.HasValue)
+            {
+                titleContainer.style.backgroundColor = baseTitleColor;
+                style.borderLeftWidth = 0f;
+                style.borderRightWidth = 0f;
+                style.borderTopWidth = 0f;
+                style.borderBottomWidth = 0f;
+                return;
+            }
+
+            Color debugColor = state.Value switch
+            {
+                ActionGraphDebugState.Started => new Color(1f, 0.72f, 0.12f),
+                ActionGraphDebugState.Completed => new Color(0.20f, 0.78f, 0.42f),
+                ActionGraphDebugState.Cancelled => new Color(0.62f, 0.66f, 0.72f),
+                ActionGraphDebugState.Failed => new Color(0.95f, 0.22f, 0.20f),
+                _ => baseTitleColor
+            };
+
+            float blend = state.Value == ActionGraphDebugState.Started || state.Value == ActionGraphDebugState.Failed
+                ? 0.65f
+                : 0.32f;
+            titleContainer.style.backgroundColor = Color.Lerp(baseTitleColor, debugColor, blend);
+
+            style.borderLeftWidth = 3f;
+            style.borderRightWidth = 3f;
+            style.borderTopWidth = 3f;
+            style.borderBottomWidth = 3f;
+            style.borderLeftColor = debugColor;
+            style.borderRightColor = debugColor;
+            style.borderTopColor = debugColor;
+            style.borderBottomColor = debugColor;
+        }
+
+        public void AddExecutionOrderControls(Action moveEarlier, Action moveLater)
+        {
+            var earlierButton = new Button(moveEarlier ?? (() => { }))
+            {
+                text = "↑",
+                tooltip = "Run this node earlier in the Sequence"
+            };
+            earlierButton.style.width = 22f;
+            earlierButton.style.height = 18f;
+            earlierButton.SetEnabled(moveEarlier != null);
+
+            var laterButton = new Button(moveLater ?? (() => { }))
+            {
+                text = "↓",
+                tooltip = "Run this node later in the Sequence"
+            };
+            laterButton.style.width = 22f;
+            laterButton.style.height = 18f;
+            laterButton.SetEnabled(moveLater != null);
+
+            int insertIndex = Mathf.Max(0, titleContainer.childCount - 1);
+            titleContainer.Insert(insertIndex, earlierButton);
+            titleContainer.Insert(insertIndex + 1, laterButton);
         }
 
         public void AddOutputPort(

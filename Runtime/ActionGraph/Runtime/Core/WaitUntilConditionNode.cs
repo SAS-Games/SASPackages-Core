@@ -1,6 +1,5 @@
 using System;
 using System.Threading;
-using System.Threading.Tasks;
 using UnityEngine;
 
 [Serializable]
@@ -23,7 +22,7 @@ public class WaitUntilConditionNode : ActionNode<WaitUntilConditionData>
     {
     }
 
-    public override async Task ExecuteAsync(ActionContext context, CancellationToken token)
+    public override async Awaitable ExecuteAsync(ActionContext context, CancellationToken token)
     {
         token.ThrowIfCancellationRequested();
 
@@ -45,7 +44,7 @@ public class WaitUntilConditionNode : ActionNode<WaitUntilConditionData>
                 return;
             }
 
-            await Awaitable.NextFrameAsync();
+            await Awaitable.NextFrameAsync(token);
             elapsed += Time.deltaTime;
         }
     }

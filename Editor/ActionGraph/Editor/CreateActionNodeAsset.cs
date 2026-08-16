@@ -10,9 +10,8 @@ public class CreateActionNodeAsset : EndNameEditAction
         string className = Path.GetFileNameWithoutExtension(pathName);
         string providerName = className + "Provider";
 
-        string template = $@"using System;
+string template = $@"using System;
 using System.Threading;
-using System.Threading.Tasks;
 using UnityEngine;
 
 [NodeBinding(typeof({className}))]
@@ -27,20 +26,12 @@ public class {className} : ActionNode<EmptyData>
     {{
     }}
 
-    public override async Task ExecuteAsync(ActionContext context, CancellationToken token)
+    public override async Awaitable ExecuteAsync(ActionContext context, CancellationToken token)
     {{
+        await Awaitable.MainThreadAsync();
         token.ThrowIfCancellationRequested();
 
-        try
-        {{
-            // TODO: Implement logic here
-
-            await Task.CompletedTask;
-        }}
-        catch (OperationCanceledException)
-        {{
-            throw;
-        }}
+        // TODO: Implement logic here
     }}
 }}
 ";

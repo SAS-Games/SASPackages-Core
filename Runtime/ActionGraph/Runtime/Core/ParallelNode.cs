@@ -1,6 +1,9 @@
+using System;
+using System.Buffers;
 using System.Collections.Generic;
+using System.Runtime.ExceptionServices;
 using System.Threading;
-using System.Threading.Tasks;
+using UnityEngine;
 
 public class ParallelNode : IActionNode
 {
@@ -17,24 +20,56 @@ public class ParallelNode : IActionNode
             _nodes[i].Init(context);
     }
 
-    public async Task ExecuteAsync(ActionContext context, CancellationToken token)
+    public async Awaitable ExecuteAsync(ActionContext context, CancellationToken token)
     {
         token.ThrowIfCancellationRequested();
 
         int count = _nodes.Count;
         if (count == 0) return;
 
-        var tasks = new Task[count];
+        Awaitable[] executions = ArrayPool<Awaitable>.Shared.Rent(count);
+        int startedCount = 0;
+        Exception firstException = null;
 
-        for (int i = 0; i < count; i++)
-            tasks[i] = ExecuteChildAsync(_nodes[i], context, token);
+        try
+        {
+            for (int i = 0; i < count; i++)
+            {
+                try
+                {
+                    Awaitable execution = _nodes[i].ExecuteAsync(context, token);
+                    executions[startedCount] = execution;
+                    startedCount++;
+                }
+                catch (Exception ex)
+                {
+                    firstException ??= ex;
+                }
+            }
 
-        await Task.WhenAll(tasks);
-    }
+            // All branches start before the first await. Await every pooled
+            // handle exactly once, even if another branch fails or is cancelled.
+            for (int i = 0; i < startedCount; i++)
+            {
+                try
+                {
+                    await executions[i];
+                }
+                catch (Exception ex)
+                {
+                    firstException ??= ex;
+                }
+            }
 
-    private static async Task ExecuteChildAsync(IActionNode node, ActionContext context, CancellationToken token)
-    {
-        await node.ExecuteAsync(context, token);
+            if (firstException != null)
+                ExceptionDispatchInfo.Capture(firstException).Throw();
+        }
+        finally
+        {
+            // Awaitable instances are pooled by Unity. Do not retain references
+            // to consumed handles inside the shared array pool.
+            ArrayPool<Awaitable>.Shared.Return(executions, clearArray: true);
+        }
     }
 
     public void Reset()

@@ -47,4 +47,13 @@ static class ActionNodeEditorNames
 
         return ObjectNames.NicifyVariableName(name);
     }
+
+    public static string GetDescription(Type nodeType)
+    {
+        var attribute = (ActionNodeMenuAttribute)Attribute.GetCustomAttribute(nodeType, typeof(ActionNodeMenuAttribute));
+        if (!string.IsNullOrWhiteSpace(attribute?.Description))
+            return attribute.Description;
+
+        return $"Runs the {GetDisplayName(nodeType)} action.";
+    }
 }

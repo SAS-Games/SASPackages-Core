@@ -1,6 +1,5 @@
 using System;
 using System.Threading;
-using System.Threading.Tasks;
 using UnityEngine;
 
 [Serializable]
@@ -21,7 +20,7 @@ public class WaitFramesNode : ActionNode<WaitFramesData>
     {
     }
 
-    public override async Task ExecuteAsync(ActionContext context, CancellationToken token)
+    public override async Awaitable ExecuteAsync(ActionContext context, CancellationToken token)
     {
         token.ThrowIfCancellationRequested();
 
@@ -31,7 +30,7 @@ public class WaitFramesNode : ActionNode<WaitFramesData>
         for (int i = 0; i < frameCount; i++)
         {
             token.ThrowIfCancellationRequested();
-            await Awaitable.NextFrameAsync();
+            await Awaitable.NextFrameAsync(token);
         }
     }
 }

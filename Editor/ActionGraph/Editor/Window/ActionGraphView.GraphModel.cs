@@ -13,7 +13,8 @@ public partial class ActionGraphView
         switch (config)
         {
             case FlowNodeConfig:
-                view.AddOutputPort("Children", OutputSlot.Children, Port.Capacity.Multi, true, TrackPendingConnection, IsOverCompatibleInputPort, position => ShowCreateNodeSearch(config, OutputSlot.Children, position));
+                // Sequence and Parallel nodes are closed group cards in this view.
+                // Their children are edited after entering the group, via Add Node.
                 break;
             case RandomNodeConfig:
                 view.AddOutputPort("Choices", OutputSlot.Children, Port.Capacity.Multi, true, TrackPendingConnection, IsOverCompatibleInputPort, position => ShowCreateNodeSearch(config, OutputSlot.Children, position));
@@ -53,15 +54,21 @@ public partial class ActionGraphView
 
     private IEnumerable<(NodeConfig node, OutputSlot slot)> GetVisibleChildren(NodeConfig config)
     {
-        if (config != null && config.editorCollapsed)
+        if (config != null && config.editorCollapsed && !ReferenceEquals(config, CurrentScope))
+            yield break;
+
+        if (config is FlowNodeConfig && !ReferenceEquals(config, CurrentScope))
             yield break;
 
         foreach (var child in GetChildren(config))
             yield return child;
     }
 
-    private static bool SupportsBranchCollapse(NodeConfig config)
+    private bool SupportsBranchCollapse(NodeConfig config)
     {
+        if (config is FlowNodeConfig && !ReferenceEquals(config, CurrentScope))
+            return false;
+
         return config is FlowNodeConfig ||
                config is RandomNodeConfig ||
                config is RepeatNodeConfig ||
@@ -333,6 +340,34 @@ public partial class ActionGraphView
         };
     }
 
+    private static string GetNodeDescription(NodeConfig config)
+    {
+        if (!string.IsNullOrWhiteSpace(config?.editorDescription))
+            return config.editorDescription.Trim();
+
+        return GetDefaultNodeDescription(config);
+    }
+
+    private static string GetDefaultNodeDescription(NodeConfig config)
+    {
+        return config switch
+        {
+            FlowNodeConfig { type: FlowNodeType.Sequence } => "Runs each child in order. Use the chevron or double-click the title to view its children.",
+            FlowNodeConfig => "Runs all children together and waits for them to finish. Use the chevron or double-click the title to view its children.",
+            RandomNodeConfig => "Selects and runs one child at random.",
+            RepeatNodeConfig => "Runs its child a fixed number of times.",
+            LoopNodeConfig loop when loop.conditionTiming == LoopConditionTiming.BeforeChild =>
+                "Checks the condition before each iteration, then runs the child while it passes.",
+            LoopNodeConfig => "Runs the child, then checks whether another iteration should run.",
+            ConditionNodeConfig condition when condition.condition != null =>
+                $"Evaluates {ObjectNames.NicifyVariableName(condition.condition.GetType().Name)} and follows the True or False branch.",
+            ConditionNodeConfig => "Evaluates a condition and follows the True or False branch.",
+            ActionNodeConfig { dataProvider: null } => "Choose an action for this node to execute.",
+            ActionNodeConfig action => GetActionNodeDescription(action),
+            _ => "Executes this graph node."
+        };
+    }
+
     private static Type GetActionNodeType(ActionNodeConfig action)
     {
         if (action?.dataProvider == null)
@@ -348,7 +383,13 @@ public partial class ActionGraphView
         return nodeType != null ? ActionNodeEditorNames.GetDisplayName(nodeType) : null;
     }
 
-    private static StyleColor GetNodeColor(NodeConfig config)
+    private static string GetActionNodeDescription(ActionNodeConfig action)
+    {
+        Type nodeType = GetActionNodeType(action);
+        return nodeType != null ? ActionNodeEditorNames.GetDescription(nodeType) : "Executes the selected action.";
+    }
+
+    private static Color GetNodeColor(NodeConfig config)
     {
         return config switch
         {

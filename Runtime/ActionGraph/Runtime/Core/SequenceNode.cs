@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 using System.Threading;
-using System.Threading.Tasks;
+using UnityEngine;
 
 public class SequenceNode : IActionNode
 {
@@ -17,7 +17,7 @@ public class SequenceNode : IActionNode
             c.Init(context);
     }
 
-    public async Task ExecuteAsync(ActionContext context, CancellationToken token)
+    public async Awaitable ExecuteAsync(ActionContext context, CancellationToken token)
     {
         for (int i = 0; i < _nodes.Count; i++)
         {

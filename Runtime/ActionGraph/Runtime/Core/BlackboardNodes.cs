@@ -1,6 +1,5 @@
 using System;
 using System.Threading;
-using System.Threading.Tasks;
 using UnityEngine;
 
 public enum ActionGraphBlackboardValueType
@@ -70,18 +69,18 @@ public class ActionGraphSetBlackboardValueNode : ActionNode<ActionGraphBlackboar
     {
     }
 
-    public override Task ExecuteAsync(ActionContext context, CancellationToken token)
+    public override async Awaitable ExecuteAsync(ActionContext context, CancellationToken token)
     {
+        await Awaitable.MainThreadAsync();
         token.ThrowIfCancellationRequested();
 
         var data = _selector.GetNext();
         if (data == null || string.IsNullOrEmpty(data.key))
-            return Task.CompletedTask;
+            return;
 
         var blackboard = ActionGraphBlackboardUtility.RequireBlackboard(context);
         blackboard.SetValue(data.key, data.GetValue());
 
-        return Task.CompletedTask;
     }
 }
 
@@ -103,18 +102,18 @@ public class ActionGraphRemoveBlackboardValueNode : ActionNode<ActionGraphBlackb
     {
     }
 
-    public override Task ExecuteAsync(ActionContext context, CancellationToken token)
+    public override async Awaitable ExecuteAsync(ActionContext context, CancellationToken token)
     {
+        await Awaitable.MainThreadAsync();
         token.ThrowIfCancellationRequested();
 
         var data = _selector.GetNext();
         if (data == null || string.IsNullOrEmpty(data.key))
-            return Task.CompletedTask;
+            return;
 
         var blackboard = ActionGraphBlackboardUtility.RequireBlackboard(context);
         blackboard.Remove(data.key);
 
-        return Task.CompletedTask;
     }
 }
 
@@ -140,19 +139,20 @@ public class ActionGraphModifyBlackboardNumberNode : ActionNode<ActionGraphBlack
     {
     }
 
-    public override Task ExecuteAsync(ActionContext context, CancellationToken token)
+    public override async Awaitable ExecuteAsync(ActionContext context, CancellationToken token)
     {
+        await Awaitable.MainThreadAsync();
         token.ThrowIfCancellationRequested();
 
         var data = _selector.GetNext();
         if (data == null || string.IsNullOrEmpty(data.key))
-            return Task.CompletedTask;
+            return;
 
         var blackboard = ActionGraphBlackboardUtility.RequireBlackboard(context);
         bool hasCurrent = ActionGraphBlackboardUtility.TryGetNumber(context, data.key, out float currentValue);
 
         if (!hasCurrent && !data.createIfMissing)
-            return Task.CompletedTask;
+            return;
 
         float nextValue = ApplyOperation(hasCurrent ? currentValue : 0f, data.operation, data.value);
 
@@ -161,7 +161,6 @@ public class ActionGraphModifyBlackboardNumberNode : ActionNode<ActionGraphBlack
         else
             blackboard.SetValue(data.key, nextValue);
 
-        return Task.CompletedTask;
     }
 
     private static float ApplyOperation(float currentValue, ActionGraphBlackboardNumberOperation operation, float value)

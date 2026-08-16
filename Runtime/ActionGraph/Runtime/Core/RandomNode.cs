@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using System.Threading;
-using System.Threading.Tasks;
 using UnityEngine;
 
 public class RandomNode : IActionNode
@@ -20,7 +19,7 @@ public class RandomNode : IActionNode
             _children[i]?.Init(context);
     }
     
-    public async Task ExecuteAsync(ActionContext context, CancellationToken token)
+    public async Awaitable ExecuteAsync(ActionContext context, CancellationToken token)
     {
         if (_children == null || _children.Count == 0)
             return;

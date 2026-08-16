@@ -18,7 +18,9 @@ public partial class ActionGraphView
             Type nodeType = pair.Key;
             Type providerType = pair.Value;
 
-            menu.AddItem(new GUIContent(ActionNodeEditorNames.GetMenuPath(nodeType)), false, () =>
+            menu.AddItem(new GUIContent(
+                ActionNodeEditorNames.GetMenuPath(nodeType),
+                ActionNodeEditorNames.GetDescription(nodeType)), false, () =>
             {
                 Undo.RecordObject(_config, "Select Action Node");
                 action.dataProvider = (ActionDataProvider)Activator.CreateInstance(providerType);
@@ -84,6 +86,12 @@ public partial class ActionGraphView
             return;
         }
 
+        if (CurrentScope is FlowNodeConfig group)
+        {
+            ShowCreateNodeSearch(group, OutputSlot.Children, context.screenMousePosition);
+            return;
+        }
+
         ShowCreateNodeSearch(null, OutputSlot.Children, context.screenMousePosition);
     }
 
@@ -130,6 +138,12 @@ public partial class ActionGraphView
         NodeConfig node = factory();
         if (node == null)
             return;
+
+        if (parent == null && node is not FlowNodeConfig)
+        {
+            Debug.LogWarning("An ActionGraph root must be a Sequence or Parallel node.");
+            return;
+        }
 
         if (parent == null && _config.root != null)
             return;
@@ -203,19 +217,22 @@ public partial class ActionGraphView
 
     private IEnumerable<NodeCreationOption> GetNodeCreationOptions()
     {
-        yield return new NodeCreationOption("Flow/Sequence", () => new FlowNodeConfig { type = FlowNodeType.Sequence });
-        yield return new NodeCreationOption("Flow/Parallel", () => new FlowNodeConfig { type = FlowNodeType.Parallel });
-        yield return new NodeCreationOption("Flow/Repeat", () => new RepeatNodeConfig());
-        yield return new NodeCreationOption("Flow/Loop", () => new LoopNodeConfig());
-        yield return new NodeCreationOption("Flow/Random", () => new RandomNodeConfig());
+        yield return new NodeCreationOption("Flow/Sequence", "Runs each child in order.", () => new FlowNodeConfig { type = FlowNodeType.Sequence }, true);
+        yield return new NodeCreationOption("Flow/Parallel", "Runs all children at the same time.", () => new FlowNodeConfig { type = FlowNodeType.Parallel }, true);
+        yield return new NodeCreationOption("Flow/Repeat", "Runs one child a fixed number of times.", () => new RepeatNodeConfig());
+        yield return new NodeCreationOption("Flow/Loop", "Runs one child while its condition allows it.", () => new LoopNodeConfig());
+        yield return new NodeCreationOption("Flow/Random", "Selects and runs one child at random.", () => new RandomNodeConfig());
 
-        yield return new NodeCreationOption("Action/Empty Action", () => new ActionNodeConfig());
+        yield return new NodeCreationOption("Action/Empty Action", "Creates an action node to configure later.", () => new ActionNodeConfig());
 
         foreach (var pair in NodeEditorCache.GetNodeToDataSetMap().OrderBy(pair => ActionNodeEditorNames.GetMenuPath(pair.Key)))
         {
             Type nodeType = pair.Key;
             Type providerType = pair.Value;
-            yield return new NodeCreationOption("Action/" + ActionNodeEditorNames.GetMenuPath(nodeType), () =>
+            yield return new NodeCreationOption(
+                "Action/" + ActionNodeEditorNames.GetMenuPath(nodeType),
+                ActionNodeEditorNames.GetDescription(nodeType),
+                () =>
             {
                 var provider = (ActionDataProvider)Activator.CreateInstance(providerType);
                 provider.EnsureDefaultData();
@@ -223,7 +240,7 @@ public partial class ActionGraphView
             });
         }
 
-        yield return new NodeCreationOption("Flow/If", () => new ConditionNodeConfig());
+        yield return new NodeCreationOption("Flow/If", "Evaluates a condition and follows the True or False branch.", () => new ConditionNodeConfig());
 
         var conditionTypes = TypeCache.GetTypesDerivedFrom<ICondition>()
             .Where(type => !type.IsAbstract && !type.IsInterface)
@@ -232,7 +249,10 @@ public partial class ActionGraphView
         foreach (var conditionType in conditionTypes)
         {
             Type capturedType = conditionType;
-            yield return new NodeCreationOption("If/" + capturedType.Name, () => new ConditionNodeConfig
+            yield return new NodeCreationOption(
+                "If/" + capturedType.Name,
+                $"Evaluates {ObjectNames.NicifyVariableName(capturedType.Name)} and follows the matching branch.",
+                () => new ConditionNodeConfig
             {
                 condition = (ICondition)Activator.CreateInstance(capturedType)
             });
@@ -274,12 +294,16 @@ public partial class ActionGraphView
     private sealed class NodeCreationOption
     {
         public readonly string Path;
+        public readonly string Description;
         public readonly Func<NodeConfig> Factory;
+        public readonly bool CanBeRoot;
 
-        public NodeCreationOption(string path, Func<NodeConfig> factory)
+        public NodeCreationOption(string path, string description, Func<NodeConfig> factory, bool canBeRoot = false)
         {
             Path = path;
+            Description = description;
             Factory = factory;
+            CanBeRoot = canBeRoot;
         }
     }
 
@@ -311,7 +335,11 @@ public partial class ActionGraphView
 
             var createdGroups = new HashSet<string>();
 
-            foreach (var option in _view.GetNodeCreationOptions().OrderBy(option => option.Path))
+            IEnumerable<NodeCreationOption> options = _view.GetNodeCreationOptions();
+            if (_parent == null && _view._config?.root == null)
+                options = options.Where(option => option.CanBeRoot);
+
+            foreach (var option in options.OrderBy(option => option.Path))
             {
                 string[] parts = option.Path.Split('/');
                 for (int i = 0; i < parts.Length - 1; i++)
@@ -321,7 +349,7 @@ public partial class ActionGraphView
                         tree.Add(new SearchTreeGroupEntry(new GUIContent(parts[i]), i + 1));
                 }
 
-                tree.Add(new SearchTreeEntry(new GUIContent(parts[parts.Length - 1]))
+                tree.Add(new SearchTreeEntry(new GUIContent(parts[parts.Length - 1], option.Description))
                 {
                     level = parts.Length,
                     userData = option

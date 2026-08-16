@@ -1,5 +1,5 @@
 using System.Threading;
-using System.Threading.Tasks;
+using UnityEngine;
 
 public class ExecutionGraph
 {
@@ -15,7 +15,7 @@ public class ExecutionGraph
         _root.Init(context);
     }
 
-    public async Task ExecuteAsync(ActionContext context, CancellationToken token)
+    public async Awaitable ExecuteAsync(ActionContext context, CancellationToken token)
     {
         await _root.ExecuteAsync(context, token);
     }

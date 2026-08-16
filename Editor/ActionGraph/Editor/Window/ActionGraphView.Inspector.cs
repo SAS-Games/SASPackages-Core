@@ -10,6 +10,8 @@ public partial class ActionGraphView
     private void DrawNodeInspector(NodeConfig config)
     {
         EditorGUIUtility.labelWidth = 88f;
+        DrawDescriptionInspector(config);
+        EditorGUILayout.Space(6f);
 
         switch (config)
         {
@@ -32,6 +34,40 @@ public partial class ActionGraphView
                 DrawActionInspector(action);
                 break;
         }
+    }
+
+    private void DrawDescriptionInspector(NodeConfig config)
+    {
+        EditorGUILayout.LabelField("Description", EditorStyles.boldLabel);
+
+        string currentDescription = GetNodeDescription(config);
+        EditorGUI.BeginChangeCheck();
+        string newDescription = EditorGUILayout.TextArea(currentDescription, GUILayout.MinHeight(42f));
+        if (EditorGUI.EndChangeCheck())
+        {
+            Undo.RecordObject(_config, "Edit Action Graph Node Description");
+            config.editorDescription = newDescription;
+            MarkDirty();
+            UpdateNodeDescription(config);
+        }
+
+        using (new EditorGUI.DisabledScope(string.IsNullOrWhiteSpace(config.editorDescription)))
+        {
+            if (GUILayout.Button("Reset to Default"))
+            {
+                Undo.RecordObject(_config, "Reset Action Graph Node Description");
+                config.editorDescription = string.Empty;
+                MarkDirty();
+                UpdateNodeDescription(config);
+                GUI.FocusControl(null);
+            }
+        }
+    }
+
+    private void UpdateNodeDescription(NodeConfig config)
+    {
+        if (_nodeViews.TryGetValue(config, out var view))
+            view.SetDescription(GetNodeDescription(config));
     }
 
     private void DrawFlowInspector(FlowNodeConfig flow)
