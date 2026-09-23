@@ -1,7 +1,9 @@
 {
     "name": "AssemblyCore",
     "rootNamespace": "",
-    "references": [],
+    "references": [
+        "GUID:560b04d1a97f54a4e82edc0cbbb69285"
+    ],
     "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,
@@ -9,6 +11,12 @@
     "precompiledReferences": [],
     "autoReferenced": true,
     "defineConstraints": [],
-    "versionDefines": [],
+    "versionDefines": [
+        {
+            "name": "com.sas.library.unirx",
+            "expression": "0.0.0",
+            "define": "UniRxEnabled"
+        }
+    ],
     "noEngineReferences": false
 }
