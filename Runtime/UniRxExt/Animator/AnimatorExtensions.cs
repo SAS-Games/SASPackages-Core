@@ -24,7 +24,7 @@ public static class AnimatorExtensions
             .AsUnitObservable();
     }
 
-    /// <summary>Completes after the next matching state exits at or beyond its configured completion threshold.</summary>
+    /// <summary>Completes when the next matching state reaches its configured completion threshold.</summary>
     public static IObservable<Unit> WhenStateCompleted(this Animator animator, string stateName)
     {
         return animator.OnStateCompletedAsObservable(stateName)
@@ -32,7 +32,7 @@ public static class AnimatorExtensions
             .AsUnitObservable();
     }
 
-    /// <summary>Completes after the next matching state exits before its configured completion threshold.</summary>
+    /// <summary>Completes when the next matching state exits before reaching its configured completion threshold.</summary>
     public static IObservable<Unit> WhenStateInterrupted(this Animator animator, string stateName)
     {
         return animator.OnStateInterruptedAsObservable(stateName)
@@ -40,20 +40,18 @@ public static class AnimatorExtensions
             .AsUnitObservable();
     }
 
-    /// <summary>Observes every completed exit from matching tagged state triggers.</summary>
+    /// <summary>Observes every completion from matching tagged state triggers.</summary>
     public static IObservable<StateEvent> OnStateCompletedAsObservable(this Animator animator, string stateName)
     {
         TaggedObservableStateMachineTrigger[] triggers = GetTriggers(animator, stateName);
-        return MergeTriggerObservables(triggers, trigger => trigger.OnStateExitAsObservable()
-                .Where(stateEvent => trigger.IsCompleted(stateEvent.StateInfo)));
+        return MergeTriggerObservables(triggers, trigger => trigger.OnCompletedAsObservable());
     }
 
     /// <summary>Observes every early or interrupted exit from matching tagged state triggers.</summary>
     public static IObservable<StateEvent> OnStateInterruptedAsObservable(this Animator animator, string stateName)
     {
         TaggedObservableStateMachineTrigger[] triggers = GetTriggers(animator, stateName);
-        return MergeTriggerObservables(triggers, trigger => trigger.OnStateExitAsObservable()
-                .Where(stateEvent => !trigger.IsCompleted(stateEvent.StateInfo)));
+        return MergeTriggerObservables(triggers, trigger => trigger.OnInterruptedAsObservable());
     }
 
     public static IObservable<Unit> WhenStateExit(this Animator animator, string stateName, float completionPercent, int layerIndex = 0)
@@ -78,10 +76,7 @@ public static class AnimatorExtensions
 
         TaggedObservableStateMachineTrigger[] triggers = animator.FindTriggers(stateName);
         if (triggers.Length == 0)
-        {
-            throw new InvalidOperationException(
-                $"Missing '{nameof(TaggedObservableStateMachineTrigger)}' or state '{stateName}' was not found.");
-        }
+            throw new InvalidOperationException($"Missing '{nameof(TaggedObservableStateMachineTrigger)}' or state '{stateName}' was not found.");
 
         return triggers;
     }
