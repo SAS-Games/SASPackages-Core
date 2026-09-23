@@ -1,36 +1,59 @@
 #if UniRxEnabled
+using System;
 using System.Collections.Generic;
 using System.Linq;
-using UnityEngine;
 using UniRx;
-using System;
-using UnityEngine.Assertions;
+using UnityEngine;
+using StateEvent = UniRx.Triggers.ObservableStateMachineTrigger.OnStateInfo;
 
 public static class AnimatorExtensions
 {
     public static IObservable<Unit> WhenStateEnter(this Animator animator, string stateName)
     {
-        var enterTriggers = GetTriggers(animator, stateName, out var firstTrigger);
-        var enterObservable = GetTriggerStateEnter(firstTrigger);
-        foreach (var trigger in enterTriggers.Skip(1))
-        {
-            enterObservable = enterObservable.Merge(GetTriggerStateEnter(trigger));
-        }
-
-        return enterObservable.First().AsUnitObservable();
+        TaggedObservableStateMachineTrigger[] triggers = GetTriggers(animator, stateName);
+        return MergeTriggerObservables(triggers, trigger => trigger.OnStateEnterAsObservable())
+            .First()
+            .AsUnitObservable();
     }
-
 
     public static IObservable<Unit> WhenStateExit(this Animator animator, string stateName)
     {
-        var exitTriggers = GetTriggers(animator, stateName, out var firstTrigger);
-        var exitObservable = GetTriggerStateExit(firstTrigger);
-        foreach (var trigger in exitTriggers.Skip(1))
-        {
-            exitObservable = exitObservable.Merge(GetTriggerStateExit(trigger));
-        }
+        TaggedObservableStateMachineTrigger[] triggers = GetTriggers(animator, stateName);
+        return MergeTriggerObservables(triggers, trigger => trigger.OnStateExitAsObservable())
+            .First()
+            .AsUnitObservable();
+    }
 
-        return exitObservable.First().AsUnitObservable();
+    /// <summary>Completes after the next matching state exits at or beyond its configured completion threshold.</summary>
+    public static IObservable<Unit> WhenStateCompleted(this Animator animator, string stateName)
+    {
+        return animator.OnStateCompletedAsObservable(stateName)
+            .First()
+            .AsUnitObservable();
+    }
+
+    /// <summary>Completes after the next matching state exits before its configured completion threshold.</summary>
+    public static IObservable<Unit> WhenStateInterrupted(this Animator animator, string stateName)
+    {
+        return animator.OnStateInterruptedAsObservable(stateName)
+            .First()
+            .AsUnitObservable();
+    }
+
+    /// <summary>Observes every completed exit from matching tagged state triggers.</summary>
+    public static IObservable<StateEvent> OnStateCompletedAsObservable(this Animator animator, string stateName)
+    {
+        TaggedObservableStateMachineTrigger[] triggers = GetTriggers(animator, stateName);
+        return MergeTriggerObservables(triggers, trigger => trigger.OnStateExitAsObservable()
+                .Where(stateEvent => trigger.IsCompleted(stateEvent.StateInfo)));
+    }
+
+    /// <summary>Observes every early or interrupted exit from matching tagged state triggers.</summary>
+    public static IObservable<StateEvent> OnStateInterruptedAsObservable(this Animator animator, string stateName)
+    {
+        TaggedObservableStateMachineTrigger[] triggers = GetTriggers(animator, stateName);
+        return MergeTriggerObservables(triggers, trigger => trigger.OnStateExitAsObservable()
+                .Where(stateEvent => !trigger.IsCompleted(stateEvent.StateInfo)));
     }
 
     public static IObservable<Unit> WhenStateExit(this Animator animator, string stateName, float completionPercent, int layerIndex = 0)
@@ -45,28 +68,39 @@ public static class AnimatorExtensions
             .AsUnitObservable();
     }
 
-
-    private static IEnumerable<TaggedObservableStateMachineTrigger> GetTriggers(Animator animator, string stateName, out TaggedObservableStateMachineTrigger firstTrigger)
+    private static TaggedObservableStateMachineTrigger[] GetTriggers(Animator animator, string stateName)
     {
-        var triggers = animator.FindTriggers(stateName);
-        firstTrigger = triggers.FirstOrDefault();
-        Assert.IsFalse(firstTrigger == null, $"Missing 'TaggedObservableStateMachineTrigger' or state \"{stateName}\" not found.");
+        if (animator == null)
+            throw new ArgumentNullException(nameof(animator));
+
+        if (string.IsNullOrWhiteSpace(stateName))
+            throw new ArgumentException("A tagged Animator state name is required.", nameof(stateName));
+
+        TaggedObservableStateMachineTrigger[] triggers = animator.FindTriggers(stateName);
+        if (triggers.Length == 0)
+        {
+            throw new InvalidOperationException(
+                $"Missing '{nameof(TaggedObservableStateMachineTrigger)}' or state '{stateName}' was not found.");
+        }
+
         return triggers;
     }
-    private static IEnumerable<TaggedObservableStateMachineTrigger> FindTriggers(this Animator animator, string stateName)
+
+    private static TaggedObservableStateMachineTrigger[] FindTriggers(this Animator animator, string stateName)
     {
         return animator.GetBehaviours<TaggedObservableStateMachineTrigger>()
-            .Where(trigger => trigger.stateName == stateName);
+            .Where(trigger => string.Equals(trigger.stateName, stateName, StringComparison.Ordinal))
+            .ToArray();
     }
 
-    private static IObservable<Unit> GetTriggerStateEnter(TaggedObservableStateMachineTrigger trigger)
+    private static IObservable<T> MergeTriggerObservables<T>(IReadOnlyList<TaggedObservableStateMachineTrigger> triggers, Func<TaggedObservableStateMachineTrigger, IObservable<T>> observableSelector)
     {
-        return trigger.OnStateEnterAsObservable().AsUnitObservable();
-    }
+        IObservable<T> observable = observableSelector(triggers[0]);
 
-    private static IObservable<Unit> GetTriggerStateExit(TaggedObservableStateMachineTrigger trigger)
-    {
-        return trigger.OnStateExitAsObservable().AsUnitObservable();
+        for (int i = 1; i < triggers.Count; i++)
+            observable = observable.Merge(observableSelector(triggers[i]));
+
+        return observable;
     }
 }
 #endif
