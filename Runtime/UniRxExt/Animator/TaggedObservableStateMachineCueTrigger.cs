@@ -25,7 +25,7 @@ public readonly struct AnimationCueStateInfo
     }
 }
 
-public sealed class CombatAnimationCueStateMachineTrigger : TaggedObservableStateMachineTrigger
+public sealed class TaggedObservableStateMachineCueTrigger : TaggedObservableStateMachineTrigger
 {
     private Subject<AnimationCueStateInfo> cuePublished;
     private bool[] publishedCues;

@@ -65,7 +65,7 @@ public static class AnimatorExtensions
     /// <summary>Observes every named cue from matching combat state triggers.</summary>
     public static IObservable<AnimationCueStateInfo> OnStateCueAsObservable(this Animator animator, string stateName, string cueName)
     {
-        CombatAnimationCueStateMachineTrigger[] triggers = GetCueTriggers(animator, stateName);
+        TaggedObservableStateMachineCueTrigger[] triggers = GetCueTriggers(animator, stateName);
         IObservable<AnimationCueStateInfo> observable = triggers[0].OnCueAsObservable(cueName);
 
         for (int i = 1; i < triggers.Length; i++)
@@ -101,7 +101,7 @@ public static class AnimatorExtensions
         return triggers;
     }
 
-    private static CombatAnimationCueStateMachineTrigger[] GetCueTriggers(Animator animator, string stateName)
+    private static TaggedObservableStateMachineCueTrigger[] GetCueTriggers(Animator animator, string stateName)
     {
         if (animator == null)
             throw new ArgumentNullException(nameof(animator));
@@ -109,13 +109,13 @@ public static class AnimatorExtensions
         if (string.IsNullOrWhiteSpace(stateName))
             throw new ArgumentException("A tagged Animator state name is required.", nameof(stateName));
 
-        CombatAnimationCueStateMachineTrigger[] triggers = animator
-            .GetBehaviours<CombatAnimationCueStateMachineTrigger>()
+        TaggedObservableStateMachineCueTrigger[] triggers = animator
+            .GetBehaviours<TaggedObservableStateMachineCueTrigger>()
             .Where(trigger => string.Equals(trigger.stateName, stateName, StringComparison.Ordinal))
             .ToArray();
 
         if (triggers.Length == 0)
-            throw new InvalidOperationException($"Missing '{nameof(CombatAnimationCueStateMachineTrigger)}' or state '{stateName}' was not found.");
+            throw new InvalidOperationException($"Missing '{nameof(TaggedObservableStateMachineCueTrigger)}' or state '{stateName}' was not found.");
 
         return triggers;
     }
