@@ -54,6 +54,26 @@ public static class AnimatorExtensions
         return MergeTriggerObservables(triggers, trigger => trigger.OnInterruptedAsObservable());
     }
 
+    /// <summary>Completes when the next matching combat state publishes the named cue.</summary>
+    public static IObservable<Unit> WhenStateCue(this Animator animator, string stateName, string cueName)
+    {
+        return animator.OnStateCueAsObservable(stateName, cueName)
+            .First()
+            .AsUnitObservable();
+    }
+
+    /// <summary>Observes every named cue from matching combat state triggers.</summary>
+    public static IObservable<AnimationCueStateInfo> OnStateCueAsObservable(this Animator animator, string stateName, string cueName)
+    {
+        CombatAnimationCueStateMachineTrigger[] triggers = GetCueTriggers(animator, stateName);
+        IObservable<AnimationCueStateInfo> observable = triggers[0].OnCueAsObservable(cueName);
+
+        for (int i = 1; i < triggers.Length; i++)
+            observable = observable.Merge(triggers[i].OnCueAsObservable(cueName));
+
+        return observable;
+    }
+
     public static IObservable<Unit> WhenStateExit(this Animator animator, string stateName, float completionPercent, int layerIndex = 0)
     {
         if (completionPercent < 0f || completionPercent > 1f)
@@ -77,6 +97,25 @@ public static class AnimatorExtensions
         TaggedObservableStateMachineTrigger[] triggers = animator.FindTriggers(stateName);
         if (triggers.Length == 0)
             throw new InvalidOperationException($"Missing '{nameof(TaggedObservableStateMachineTrigger)}' or state '{stateName}' was not found.");
+
+        return triggers;
+    }
+
+    private static CombatAnimationCueStateMachineTrigger[] GetCueTriggers(Animator animator, string stateName)
+    {
+        if (animator == null)
+            throw new ArgumentNullException(nameof(animator));
+
+        if (string.IsNullOrWhiteSpace(stateName))
+            throw new ArgumentException("A tagged Animator state name is required.", nameof(stateName));
+
+        CombatAnimationCueStateMachineTrigger[] triggers = animator
+            .GetBehaviours<CombatAnimationCueStateMachineTrigger>()
+            .Where(trigger => string.Equals(trigger.stateName, stateName, StringComparison.Ordinal))
+            .ToArray();
+
+        if (triggers.Length == 0)
+            throw new InvalidOperationException($"Missing '{nameof(CombatAnimationCueStateMachineTrigger)}' or state '{stateName}' was not found.");
 
         return triggers;
     }
