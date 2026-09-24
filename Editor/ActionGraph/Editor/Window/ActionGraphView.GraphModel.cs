@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using UnityEditor;
 using UnityEditor.Experimental.GraphView;
 using UnityEngine;
@@ -389,6 +391,54 @@ public partial class ActionGraphView
         return nodeType != null ? ActionNodeEditorNames.GetDescription(nodeType) : "Executes the selected action.";
     }
 
+    private static void OpenActionNodeScript(ActionNodeConfig action)
+    {
+        Type nodeType = GetActionNodeType(action);
+        if (nodeType == null)
+            return;
+
+        MonoScript script = MonoImporter.GetAllRuntimeMonoScripts()
+            .FirstOrDefault(candidate => candidate != null && candidate.GetClass() == nodeType);
+        script ??= FindScriptContainingType(nodeType);
+        if (script != null)
+        {
+            AssetDatabase.OpenAsset(script);
+            return;
+        }
+
+        Debug.LogWarning($"Could not find a source file containing {nodeType.FullName}.");
+    }
+
+    private static MonoScript FindScriptContainingType(Type nodeType)
+    {
+        string typeDeclaration = $@"\b(class|struct)\s+{Regex.Escape(nodeType.Name)}\b";
+        string[] scriptGuids = AssetDatabase.FindAssets("t:MonoScript");
+        for (int i = 0; i < scriptGuids.Length; i++)
+        {
+            string path = AssetDatabase.GUIDToAssetPath(scriptGuids[i]);
+            if (string.IsNullOrEmpty(path) || !path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            try
+            {
+                if (!Regex.IsMatch(File.ReadAllText(path), typeDeclaration))
+                    continue;
+
+                return AssetDatabase.LoadAssetAtPath<MonoScript>(path);
+            }
+            catch (IOException)
+            {
+                // Ignore files that become unavailable during an asset refresh.
+            }
+            catch (UnauthorizedAccessException)
+            {
+                // Ignore package files that are not readable in the current project.
+            }
+        }
+
+        return null;
+    }
+
     private static Color GetNodeColor(NodeConfig config)
     {
         return config switch
@@ -405,8 +455,21 @@ public partial class ActionGraphView
 
     private void MarkDirty()
     {
-        if (_config != null)
-            EditorUtility.SetDirty(_config);
+        if (_config == null)
+            return;
+
+        EditorUtility.SetDirty(_config);
+        ScheduleSave();
+    }
+
+    private void ScheduleSave()
+    {
+        _pendingSave?.Pause();
+        _pendingSave = schedule.Execute(_ =>
+        {
+            _pendingSave = null;
+            SaveChanges();
+        }).StartingIn(300);
     }
 }
 
