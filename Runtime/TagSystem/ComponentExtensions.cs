@@ -143,7 +143,7 @@ namespace SAS.Core.TagSystem
                 baseType = baseType.BaseType;
             }
 
-            return fields.AsEnumerable();
+            return enumerable;
         }
 
         private static Array ConvertArray<T>(T[] elements, Type castType)
