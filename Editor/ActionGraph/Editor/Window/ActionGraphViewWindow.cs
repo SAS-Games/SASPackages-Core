@@ -31,6 +31,7 @@ public class ActionGraphWindow : EditorWindow
 
     private void OnDisable()
     {
+        _graphView?.SaveChanges();
         ActionGraphDebug.NodeStateChanged -= OnNodeDebugStateChanged;
         EditorApplication.playModeStateChanged -= OnPlayModeStateChanged;
     }
@@ -148,6 +149,7 @@ public class ActionGraphWindow : EditorWindow
 
     private void LoadConfig(ActionGraphAsset config)
     {
+        _graphView?.SaveChanges();
         _config = config;
         ClearDebugTrace();
 
@@ -316,6 +318,7 @@ public class ActionGraphWindow : EditorWindow
 
         EditorUtility.SetDirty(_config);
         _graphView.Load(_config);
+        _graphView.SaveChanges();
     }
 
     private void ResetLayout()
@@ -352,6 +355,7 @@ public partial class ActionGraphView : GraphView
     private OutputSlot _lastSearchSlot;
     private double _lastSearchTime;
     private bool _rebuildQueued;
+    private IVisualElementScheduledItem _pendingSave;
 
     public event System.Action NavigationChanged;
     public bool CanNavigateBack => _navigationStack.Count > 1;
@@ -379,6 +383,9 @@ public partial class ActionGraphView : GraphView
 
     public void Load(ActionGraphAsset config)
     {
+        if (_config != null && !ReferenceEquals(_config, config))
+            SaveChanges();
+
         _config = config;
         _debugStates.Clear();
         _navigationStack.Clear();
@@ -475,9 +482,27 @@ public partial class ActionGraphView : GraphView
         int row = 0;
         AssignLayout(_config.root, 0, ref row);
 
-        EditorUtility.SetDirty(_config);
+        MarkDirty();
         Rebuild();
         schedule.Execute(_ => FrameAll()).StartingIn(50);
+    }
+
+    public void SaveChanges()
+    {
+        _pendingSave?.Pause();
+        _pendingSave = null;
+
+        if (_config == null)
+            return;
+
+        bool geometryChanged = false;
+        foreach (ActionGraphNodeView view in _nodeViews.Values)
+            geometryChanged |= CaptureNodeRect(view);
+
+        if (geometryChanged)
+            EditorUtility.SetDirty(_config);
+
+        AssetDatabase.SaveAssetIfDirty(_config);
     }
 
     public override void BuildContextualMenu(ContextualMenuPopulateEvent evt)
@@ -623,6 +648,9 @@ public partial class ActionGraphView : GraphView
                 ? () => EnterGroup(group)
                 : null,
             isRoot,
+            config is ActionNodeConfig action && GetActionNodeType(action) != null
+                ? () => OpenActionNodeScript(action)
+                : null,
             () => DeleteNode(config),
             SupportsBranchCollapse(config),
             config.editorCollapsed,
@@ -690,21 +718,26 @@ public partial class ActionGraphView : GraphView
 
     private void PersistNodeRect(ActionGraphNodeView view)
     {
+        if (CaptureNodeRect(view))
+            MarkDirty();
+    }
+
+    private static bool CaptureNodeRect(ActionGraphNodeView view)
+    {
         if (view?.Config == null)
-            return;
+            return false;
 
         Rect rect = view.GetPosition();
         Vector2 size = ClampNodeSize(rect.size);
-
-        bool changed = view.Config.editorPosition != rect.position ||
-                       view.Config.editorSize != size;
-
-        if (!changed)
-            return;
+        if (view.Config.editorPosition == rect.position &&
+            view.Config.editorSize == size)
+        {
+            return false;
+        }
 
         view.Config.editorPosition = rect.position;
         view.Config.editorSize = size;
-        MarkDirty();
+        return true;
     }
 
     private static Vector2 GetNodeSize(NodeConfig config)

@@ -22,6 +22,7 @@ public partial class ActionGraphView
             bool isGroup,
             Action openGroup,
             bool isRoot,
+            Action openScript,
             Action delete,
             bool canCollapseBranch,
             bool isBranchCollapsed,
@@ -92,6 +93,18 @@ public partial class ActionGraphView
                 collapseButton.style.width = 22f;
                 collapseButton.style.height = 18f;
                 titleContainer.Add(collapseButton);
+            }
+
+            if (openScript != null)
+            {
+                var scriptButton = new Button(openScript)
+                {
+                    text = "C#",
+                    tooltip = "Open this action node's source file"
+                };
+                scriptButton.style.width = 30f;
+                scriptButton.style.height = 18f;
+                titleContainer.Add(scriptButton);
             }
 
             var deleteButton = new Button(delete)
