@@ -49,7 +49,7 @@ namespace SAS.Core.TagSystem
                     }
 
                     if (instance == null)
-                        Debug.LogError($"No GameObject having component attached of the type:  {m_Type} with  tag: {m_Tag} found in scene: {(contextBinder as MonoBehaviour).gameObject.scene.name}");
+                        Debug.LogWarning($"No component of type '{m_Type}' with tag '{m_Tag}' was found in any currently loaded scene while resolving from context scene '{(contextBinder as MonoBehaviour).gameObject.scene.name}'. It may become available when another additive scene is loaded.");
                 }
                 else
                 {
